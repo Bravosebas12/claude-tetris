@@ -8,6 +8,7 @@
 </head>
 <body>
   <div class="wrapper">
+    <h1 class="game-title">TETRIS</h1>
     <div class="game-container">
       <canvas id="board" width="300" height="600"></canvas>
 
@@ -30,24 +31,86 @@
           <canvas id="next-canvas" width="120" height="120"></canvas>
         </div>
 
-        <div class="panel-section controls">
-          <span class="label">CONTROLS</span>
-          <ul>
+        <div class="panel-section">
+          <span class="label">SKIN</span>
+          <div class="skin-buttons">
+            <button class="skin-btn active" data-skin="retro">Retro</button>
+            <button class="skin-btn" data-skin="neon">Neon</button>
+            <button class="skin-btn" data-skin="pastel">Pastel</button>
+            <button class="skin-btn" data-skin="pixel">Pixel</button>
+          </div>
+        </div>
+
+      </aside>
+    </div>
+
+    <!-- Overlay de pausa -->
+    <div id="pause-overlay" class="overlay hidden">
+      <div class="overlay-box pause-box">
+        <p class="pause-title">PAUSA</p>
+
+        <div class="pause-buttons">
+          <button id="resume-btn" class="pause-btn">Reanudar</button>
+          <button id="pause-restart-btn" class="pause-btn">Reiniciar</button>
+        </div>
+
+        <div class="pause-section">
+          <span class="pause-label">Controles</span>
+          <ul class="controls-list">
             <li><kbd>←</kbd><kbd>→</kbd> mover</li>
             <li><kbd>↑</kbd> rotar</li>
             <li><kbd>↓</kbd> bajar</li>
             <li><kbd>Space</kbd> caída</li>
-            <li><kbd>P</kbd> pausa</li>
+            <li><kbd>P</kbd> / <kbd>Esc</kbd> pausa</li>
           </ul>
         </div>
-      </aside>
+
+        <div class="pause-section">
+          <span class="pause-label">Nivel inicial</span>
+          <div class="nivel-row">
+            <button id="nivel-dec" class="nivel-btn">−</button>
+            <span id="nivel-display" class="nivel-display">1</span>
+            <button id="nivel-inc" class="nivel-btn">+</button>
+          </div>
+        </div>
+      </div>
     </div>
 
+    <!-- Pantalla de inicio -->
+    <div id="start-overlay" class="overlay">
+      <div class="overlay-box start-box">
+        <p id="start-title">TETRIS</p>
+        <div id="start-scores-wrap">
+          <p class="scores-heading">RÉCORDS</p>
+          <div id="start-scores-table"></div>
+        </div>
+        <button id="start-btn">Jugar</button>
+      </div>
+    </div>
+
+    <!-- Overlay de juego (pausa / game over) -->
     <div id="overlay" class="overlay hidden">
       <div class="overlay-box">
         <p id="overlay-title">GAME OVER</p>
         <p id="overlay-score"></p>
-        <button id="restart-btn">Reiniciar</button>
+
+        <!-- Resumen final (solo game over) -->
+        <div id="gameover-summary" class="hidden">
+          <div id="new-record-banner" class="hidden">¡Nuevo récord!</div>
+
+          <div class="name-row">
+            <label for="player-name">Tu nombre:</label>
+            <input id="player-name" type="text" maxlength="12" autocomplete="off" spellcheck="false" />
+          </div>
+
+          <div id="gameover-scores-table"></div>
+
+          <button id="save-btn">Guardar y jugar de nuevo</button>
+          <button id="reset-scores-btn">Reiniciar récords</button>
+        </div>
+
+        <!-- Botón pausa -->
+        <button id="restart-btn" class="hidden">Reiniciar</button>
       </div>
     </div>
   </div>

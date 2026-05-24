@@ -13,10 +13,25 @@ body {
   justify-content: center;
   min-height: 100vh;
   user-select: none;
+  transition: background 0.3s;
 }
 
 .wrapper {
   position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.game-title {
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 38px;
+  font-weight: 800;
+  letter-spacing: 12px;
+  color: #7aa2f7;
+  text-shadow: 0 0 24px rgba(122, 162, 247, 0.45);
+  margin-bottom: 18px;
+  text-indent: 12px;
 }
 
 .game-container {
@@ -70,22 +85,6 @@ body {
   border-radius: 4px;
 }
 
-/* ---- Controles ---- */
-.controls ul {
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.controls li {
-  font-size: 12px;
-  color: #888;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
 kbd {
   background: #22223a;
   border: 1px solid #3a3a5a;
@@ -103,9 +102,10 @@ kbd {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(10, 10, 20, 0.75);
+  background: rgba(10, 10, 20, 0.85);
   backdrop-filter: blur(4px);
   border-radius: 4px;
+  overflow-y: auto;
 }
 
 .overlay.hidden {
@@ -118,6 +118,38 @@ kbd {
   flex-direction: column;
   gap: 12px;
   align-items: center;
+  padding: 20px 16px;
+  max-height: 100%;
+  overflow-y: auto;
+  width: 100%;
+  max-width: 360px;
+}
+
+/* Start screen */
+.start-box {
+  gap: 16px;
+}
+
+#start-title {
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 32px;
+  font-weight: 800;
+  letter-spacing: 8px;
+  color: #7aa2f7;
+  text-shadow: 0 0 20px rgba(122, 162, 247, 0.5);
+}
+
+#start-scores-wrap {
+  width: 100%;
+}
+
+.scores-heading {
+  font-size: 9px;
+  letter-spacing: 3px;
+  color: #555570;
+  font-weight: 600;
+  margin-bottom: 8px;
+  text-transform: uppercase;
 }
 
 #overlay-title {
@@ -133,7 +165,8 @@ kbd {
   color: #7aa2f7;
 }
 
-#restart-btn {
+#restart-btn,
+#start-btn {
   margin-top: 8px;
   background: #7aa2f7;
   color: #0f0f17;
@@ -147,6 +180,364 @@ kbd {
   transition: background 0.15s;
 }
 
-#restart-btn:hover {
+#restart-btn:hover,
+#start-btn:hover {
   background: #9bbdff;
+}
+
+/* ---- Game-over summary ---- */
+#gameover-summary {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+#gameover-summary.hidden {
+  display: none;
+}
+
+/* New record banner */
+#new-record-banner {
+  background: linear-gradient(90deg, #ffd54f, #ffb74d);
+  color: #1a1000;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 2px;
+  padding: 5px 18px;
+  border-radius: 999px;
+  text-transform: uppercase;
+}
+
+#new-record-banner.hidden {
+  display: none;
+}
+
+/* Name input */
+.name-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #888;
+}
+
+#player-name {
+  background: #22223a;
+  border: 1px solid #3a3a5a;
+  border-radius: 4px;
+  color: #e0e0e0;
+  font-size: 13px;
+  padding: 4px 8px;
+  width: 120px;
+  outline: none;
+  transition: border-color 0.15s;
+  user-select: text;
+}
+
+#player-name:focus {
+  border-color: #7aa2f7;
+}
+
+/* Save button */
+#save-btn {
+  background: #7aa2f7;
+  color: #0f0f17;
+  border: none;
+  border-radius: 6px;
+  padding: 10px 20px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  letter-spacing: 0.5px;
+  transition: background 0.15s;
+  white-space: nowrap;
+}
+
+#save-btn:hover {
+  background: #9bbdff;
+}
+
+/* Reset scores button */
+#reset-scores-btn {
+  background: transparent;
+  color: #888;
+  border: 1px solid #3a3a5a;
+  border-radius: 4px;
+  padding: 4px 12px;
+  font-size: 11px;
+  cursor: pointer;
+  letter-spacing: 0.5px;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+#reset-scores-btn:hover {
+  color: #aaa;
+  border-color: #555570;
+}
+
+/* ---- Scores table ---- */
+.scores-table {
+  font-size: 11px;
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.scores-table th {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  color: #555570;
+  font-weight: 600;
+  border-bottom: 1px solid #2a2a3a;
+  padding: 4px;
+}
+
+.scores-table td {
+  padding: 4px;
+  color: #888;
+}
+
+.scores-table td:first-child {
+  color: #444466;
+}
+
+.scores-table td:nth-child(3) {
+  font-family: 'Courier New', Courier, monospace;
+  color: #7aa2f7;
+}
+
+.scores-table tr.hl td {
+  background: rgba(122, 162, 247, 0.08);
+  color: #fff;
+}
+
+.scores-table tr.hl td:nth-child(3) {
+  color: #ffd54f;
+}
+
+.hidden {
+  display: none;
+}
+
+/* ---- Pause overlay ---- */
+.pause-box {
+  gap: 18px;
+}
+
+.pause-title {
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: 6px;
+  color: #7aa2f7;
+  text-shadow: 0 0 16px rgba(122, 162, 247, 0.4);
+}
+
+.pause-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  align-items: center;
+}
+
+.pause-btn {
+  background: #7aa2f7;
+  color: #0f0f17;
+  border: none;
+  border-radius: 6px;
+  padding: 10px 36px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  letter-spacing: 1px;
+  transition: background 0.15s;
+  width: 180px;
+}
+
+.pause-btn:hover {
+  background: #9bbdff;
+}
+
+.pause-btn:last-child {
+  background: #22223a;
+  color: #7aa2f7;
+  border: 1px solid #3a3a5a;
+}
+
+.pause-btn:last-child:hover {
+  background: #2e2e50;
+}
+
+.pause-section {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-start;
+  border-top: 1px solid #2a2a3a;
+  padding-top: 14px;
+}
+
+.pause-label {
+  font-size: 9px;
+  letter-spacing: 3px;
+  color: #555570;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.controls-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+
+.controls-list li {
+  font-size: 12px;
+  color: #888;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.nivel-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.nivel-btn {
+  background: #22223a;
+  color: #7aa2f7;
+  border: 1px solid #3a3a5a;
+  border-radius: 4px;
+  width: 32px;
+  height: 32px;
+  font-size: 18px;
+  font-weight: 700;
+  cursor: pointer;
+  line-height: 1;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.nivel-btn:hover {
+  background: #2e2e50;
+  border-color: #7aa2f7;
+}
+
+.nivel-display {
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 22px;
+  font-weight: 700;
+  color: #7aa2f7;
+  min-width: 2ch;
+  text-align: center;
+  display: inline-block;
+}
+
+/* ---- Skins ---- */
+
+.skin-buttons {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5px;
+}
+
+.skin-btn {
+  background: #22223a;
+  border: 1px solid #3a3a5a;
+  border-radius: 4px;
+  color: #aaa;
+  font-size: 11px;
+  padding: 5px 0;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.skin-btn:hover {
+  border-color: #7aa2f7;
+  color: #e0e0e0;
+}
+
+.skin-btn.active {
+  background: #7aa2f7;
+  color: #0f0f17;
+  border-color: #7aa2f7;
+  font-weight: 700;
+}
+
+/* Neon skin overrides */
+body[data-skin="neon"] {
+  background: #000010;
+}
+
+body[data-skin="neon"] .game-title {
+  color: #00ffcc;
+  text-shadow: 0 0 20px rgba(0, 255, 200, 0.6);
+}
+
+body[data-skin="neon"] #board,
+body[data-skin="neon"] #next-canvas {
+  border-color: #003344;
+  box-shadow: 0 0 30px rgba(0, 255, 200, 0.15);
+}
+
+body[data-skin="neon"] .value {
+  color: #00ffcc;
+}
+
+body[data-skin="neon"] .skin-btn.active {
+  background: #00ffcc;
+  color: #000010;
+  border-color: #00ffcc;
+}
+
+/* Pastel skin overrides */
+body[data-skin="pastel"] {
+  background: #ece8ff;
+}
+
+body[data-skin="pastel"] .game-title {
+  color: #8855cc;
+  text-shadow: none;
+}
+
+body[data-skin="pastel"] #board,
+body[data-skin="pastel"] #next-canvas {
+  border-color: #c8c0e8;
+  background: #f0eeff;
+}
+
+body[data-skin="pastel"] .value {
+  color: #6644aa;
+}
+
+body[data-skin="pastel"] .label {
+  color: #9988bb;
+}
+
+body[data-skin="pastel"] .panel {
+  color: #444;
+}
+
+body[data-skin="pastel"] .skin-btn {
+  background: #e0d8f8;
+  border-color: #c0b8e0;
+  color: #6644aa;
+}
+
+body[data-skin="pastel"] .skin-btn.active {
+  background: #8855cc;
+  border-color: #8855cc;
+  color: #fff;
+}
+
+body[data-skin="pastel"] .overlay {
+  background: rgba(200, 180, 255, 0.85);
 }
