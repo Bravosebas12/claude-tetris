@@ -1,0 +1,111 @@
+name: Claude Issue Analyzer
+
+on:
+  issues:
+    types: [opened, edited]
+
+concurrency:
+  group: issue-analyzer-${{ github.event.issue.number }}
+  cancel-in-progress: true
+
+jobs:
+  setup-labels:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      contents: read
+    steps:
+      - name: Create custom labels if missing
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh label create "performance"      --color "0075ca" --description "Performance improvements"  --force
+          gh label create "ui/ux"            --color "e4e669" --description "UI and UX changes"         --force
+          gh label create "gameplay"         --color "d93f0b" --description "Game logic and mechanics"  --force
+          gh label create "good first issue" --color "7057ff" --description "Good for newcomers"        --force
+
+  analyze-issue:
+    needs: setup-labels
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      id-token: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Analyze issue with Claude
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          claude_args: '--allowed-tools Bash(gh issue view *),Bash(gh issue edit --add-label *),Bash(gh issue comment *),Bash(gh label list *)'
+          prompt: |
+            You are a triage assistant for a vanilla JavaScript Tetris game project.
+            The repository has three source files:
+              - game.js  — all game logic (createBoard, randomPiece, collide, rotateCW, tryRotate,
+                           merge, clearLines, ghostY, hardDrop, lockPiece, spawn, draw, loop, init)
+              - index.html — single HTML page, canvas setup, HUD elements
+              - style.css  — dark-theme styling, layout, controls panel
+
+            An issue has been opened or edited. Its number is ${{ github.event.issue.number }}.
+
+            Do the following steps in order:
+
+            STEP 1 — Read the issue.
+            Run: gh issue view ${{ github.event.issue.number }} --json title,body,labels
+            Never use any other source for the issue content.
+
+            STEP 2 — Choose labels.
+            Pick ONE OR MORE labels from this exact list:
+              bug, enhancement, documentation, question, performance, ui/ux, gameplay, good first issue
+            - bug: something broken or incorrect
+            - enhancement: new feature or improvement request
+            - documentation: docs, README, or code comments
+            - question: author asks without reporting a problem
+            - performance: speed, frame rate, efficiency
+            - ui/ux: visuals, layout, styling, canvas rendering
+            - gameplay: pieces, rotation, scoring, levels, game rules
+            - good first issue: straightforward fix for a newcomer
+            Apply with: gh issue edit ${{ github.event.issue.number }} --add-label "LABEL1,LABEL2"
+
+            STEP 3 — Post a diagnosis comment.
+            Run: gh issue comment ${{ github.event.issue.number }} --body "..."
+            Use this exact Markdown structure:
+
+            ## Issue Diagnosis
+
+            ### Problem Summary
+            One or two sentences describing what the issue is about.
+
+            ### Affected Components
+            List only relevant files:
+            - `game.js` — [reason if relevant]
+            - `index.html` — [reason if relevant]
+            - `style.css` — [reason if relevant]
+
+            ### Root Cause Analysis
+            Technical cause. Reference specific functions when relevant
+            (e.g. `collide()`, `tryRotate()`, `clearLines()`, `lockPiece()`).
+
+            ### Suggested Solution Approach
+            Which file(s) and function(s) to modify, and what change to make.
+
+            ### Estimated Complexity
+            **Complexity: Low / Medium / High**
+            - Low: < 1 hour, isolated change in one function
+            - Medium: 1–4 hours, multiple functions or careful testing needed
+            - High: > 4 hours, architectural change or significant new feature
+
+            ---
+            *Automated triage by Claude*
+
+            Rules:
+            - Never invent issue content — always read it first.
+            - Only use the tools in your allowlist.
+            - Do not modify source files or open PRs.
+            - If the issue is spam or lacks actionable content, apply "question" label
+              and post a polite comment asking for clarification instead of a diagnosis.
