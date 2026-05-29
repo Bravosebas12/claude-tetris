@@ -4,16 +4,30 @@ const COLS = 10;
 const ROWS = 20;
 const BLOCK = 30;
 
-const COLORS = [
-  null,
-  '#4dd0e1', // I - cyan
-  '#ffd54f', // O - yellow
-  '#ba68c8', // T - purple
-  '#81c784', // S - green
-  '#e57373', // Z - red
-  '#7986cb', // J - indigo
-  '#ffb74d', // L - orange
-];
+const COLORS_MAP = {
+  retro: [
+    null,
+    '#4dd0e1', '#ffd54f', '#ba68c8', '#81c784', '#e57373', '#0000ff', '#ffb74d', '#9e9e9e',
+  ],
+  neon: [
+    null,
+    '#00ffff', '#ffff00', '#cc00ff', '#00ff66', '#ff0033', '#0066ff', '#ff8800', '#aaaaaa',
+  ],
+  pastel: [
+    null,
+    '#a8e6cf', '#ffd3b6', '#d4a5e8', '#b8f0b8', '#ffb3ba', '#85c1e9', '#fec89a', '#d3d3d3',
+  ],
+  pixel: [
+    null,
+    '#4dd0e1', '#ffd54f', '#ba68c8', '#81c784', '#e57373', '#0000ff', '#ffb74d', '#9e9e9e',
+  ],
+};
+
+const VALID_SKINS = ['retro', 'neon', 'pastel', 'pixel'];
+const saved = localStorage.getItem('tetris-skin');
+let activeSkin = VALID_SKINS.includes(saved) ? saved : 'retro';
+
+function getColors() { return COLORS_MAP[activeSkin]; }
 
 const PIECES = [
   null,
@@ -24,6 +38,7 @@ const PIECES = [
   [[5,5,0],[0,5,5],[0,0,0]],                  // Z
   [[6,0,0],[6,6,6],[0,0,0]],                  // J
   [[0,0,7],[7,7,7],[0,0,0]],                  // L
+  [[8,8,8],[8,0,8],[8,8,8]],                  // Tuerca
 ];
 
 const LINE_SCORES = [0, 100, 300, 500, 800];
@@ -47,7 +62,7 @@ function createBoard() {
 }
 
 function randomPiece() {
-  const type = Math.floor(Math.random() * 7) + 1;
+  const type = Math.floor(Math.random() * 8) + 1;
   const shape = PIECES[type].map(row => [...row]);
   return { type, shape, x: Math.floor(COLS / 2) - Math.floor(shape[0].length / 2), y: 0 };
 }
@@ -158,18 +173,52 @@ function updateHUD() {
 
 function drawBlock(context, x, y, colorIndex, size, alpha) {
   if (!colorIndex) return;
-  const color = COLORS[colorIndex];
+  const color = getColors()[colorIndex];
   context.globalAlpha = alpha ?? 1;
-  context.fillStyle = color;
-  context.fillRect(x * size + 1, y * size + 1, size - 2, size - 2);
-  // highlight
-  context.fillStyle = 'rgba(255,255,255,0.12)';
-  context.fillRect(x * size + 1, y * size + 1, size - 2, 4);
+
+  if (activeSkin === 'neon') {
+    context.shadowColor = color;
+    context.shadowBlur = 14;
+    context.fillStyle = color;
+    context.fillRect(x * size + 1, y * size + 1, size - 2, size - 2);
+    context.shadowBlur = 0;
+
+  } else if (activeSkin === 'pastel') {
+    const inset = 4;
+    context.fillStyle = color;
+    context.fillRect(x * size + inset, y * size + inset, size - inset * 2, size - inset * 2);
+    context.fillStyle = 'rgba(255,255,255,0.30)';
+    context.fillRect(x * size + inset, y * size + inset, size - inset * 2, 3);
+
+  } else if (activeSkin === 'pixel') {
+    context.fillStyle = color;
+    context.fillRect(x * size + 1, y * size + 1, size - 2, size - 2);
+    // 4x4 dot-matrix overlay
+    const dotStep = Math.floor((size - 2) / 4);
+    context.fillStyle = 'rgba(0,0,0,0.28)';
+    for (let dr = 0; dr < 4; dr++) {
+      for (let dc = 0; dc < 4; dc++) {
+        context.fillRect(
+          x * size + 2 + dc * dotStep,
+          y * size + 2 + dr * dotStep,
+          2, 2
+        );
+      }
+    }
+
+  } else {
+    // retro (default)
+    context.fillStyle = color;
+    context.fillRect(x * size + 1, y * size + 1, size - 2, size - 2);
+    context.fillStyle = 'rgba(255,255,255,0.12)';
+    context.fillRect(x * size + 1, y * size + 1, size - 2, 4);
+  }
+
   context.globalAlpha = 1;
 }
 
 function drawGrid() {
-  ctx.strokeStyle = '#22222e';
+  ctx.strokeStyle = activeSkin === 'neon' ? '#0a0a15' : '#22222e';
   ctx.lineWidth = 0.5;
   for (let c = 1; c < COLS; c++) {
     ctx.beginPath();
@@ -252,6 +301,7 @@ function loop(ts) {
       lockPiece();
     }
   }
+  if (gameOver) return;
   draw();
   animId = requestAnimationFrame(loop);
 }
@@ -272,6 +322,19 @@ function init() {
   overlay.classList.add('hidden');
   cancelAnimationFrame(animId);
   animId = requestAnimationFrame(loop);
+}
+
+function applySkin(skinName) {
+  activeSkin = skinName;
+  localStorage.setItem('tetris-skin', skinName);
+  document.querySelectorAll('.skin-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.skin === skinName);
+  });
+  canvas.style.background = skinName === 'neon' ? '#000000' : '';
+  if (current) {
+    draw();
+    drawNext();
+  }
 }
 
 document.addEventListener('keydown', e => {
@@ -301,4 +364,9 @@ document.addEventListener('keydown', e => {
 
 restartBtn.addEventListener('click', init);
 
+document.querySelectorAll('.skin-btn').forEach(btn => {
+  btn.addEventListener('click', () => applySkin(btn.dataset.skin));
+});
+
 init();
+applySkin(activeSkin); // apply after init() so current/next are set
