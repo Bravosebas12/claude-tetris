@@ -8,6 +8,7 @@
 </head>
 <body>
   <div class="wrapper">
+    <h1 class="game-title">TETRIS</h1>
     <div class="game-container">
       <canvas id="board" width="300" height="600"></canvas>
 
@@ -40,6 +41,10 @@
             <li><kbd>P</kbd> pausa</li>
           </ul>
         </div>
+
+        <div class="panel-section">
+          <button id="theme-toggle" title="Cambiar tema">🌙</button>
+        </div>
       </aside>
     </div>
 
@@ -47,11 +52,42 @@
       <div class="overlay-box">
         <p id="overlay-title">GAME OVER</p>
         <p id="overlay-score"></p>
+
+        <div id="name-input-section" class="hidden">
+          <p class="overlay-label">¡Nueva puntuación! Tu nombre:</p>
+          <input id="player-name" type="text" maxlength="12" placeholder="AAA" autocomplete="off" />
+          <button id="save-score-btn" class="overlay-btn-primary">Guardar</button>
+        </div>
+
+        <div id="leaderboard-section">
+          <p class="label">TOP 5</p>
+          <ol id="leaderboard-list"></ol>
+        </div>
+
+        <button id="reset-scores-btn">Borrar récords</button>
         <button id="restart-btn">Reiniciar</button>
       </div>
     </div>
   </div>
 
   <script src="game.js"></script>
+  <script>
+    (function () {
+      const btn = document.getElementById('theme-toggle');
+      const body = document.body;
+      const saved = localStorage.getItem('theme');
+
+      if (saved === 'light') {
+        body.classList.add('light-mode');
+        btn.textContent = '☀️';
+      }
+
+      btn.addEventListener('click', function () {
+        const isLight = body.classList.toggle('light-mode');
+        btn.textContent = isLight ? '☀️' : '🌙';
+        localStorage.setItem('theme', isLight ? 'light' : 'dark');
+      });
+    })();
+  </script>
 </body>
 </html>
