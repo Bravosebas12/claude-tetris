@@ -29,6 +29,8 @@ const PIECES = [
 ];
 
 const LINE_SCORES = [0, 100, 300, 500, 800];
+const LS_SCORES_KEY = 'tetris-scores';
+const TOP_N = 5;
 
 const canvas = document.getElementById('board');
 const ctx = canvas.getContext('2d');
@@ -41,8 +43,13 @@ const overlay = document.getElementById('overlay');
 const overlayTitle = document.getElementById('overlay-title');
 const overlayScore = document.getElementById('overlay-score');
 const restartBtn = document.getElementById('restart-btn');
+const nameInputSection = document.getElementById('name-input-section');
+const playerNameInput  = document.getElementById('player-name');
+const saveScoreBtn     = document.getElementById('save-score-btn');
+const leaderboardList  = document.getElementById('leaderboard-list');
+const resetScoresBtn   = document.getElementById('reset-scores-btn');
 
-let board, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId;
+let board, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId, combo, maxCombo, maxLines;
 
 function createBoard() {
   return Array.from({ length: ROWS }, () => new Array(COLS).fill(0));
@@ -112,6 +119,7 @@ function clearLines() {
     dropInterval = Math.max(100, 1000 - (level - 1) * 90);
     updateHUD();
   }
+  return cleared;
 }
 
 function ghostY() {
@@ -139,7 +147,13 @@ function softDrop() {
 
 function lockPiece() {
   merge();
-  clearLines();
+  const cleared = clearLines();
+  if (cleared > 0) {
+    combo++;
+    if (combo > maxCombo) maxCombo = combo;
+  } else {
+    combo = 0;
+  }
   spawn();
 }
 
@@ -220,11 +234,63 @@ function drawNext() {
       drawBlock(nextCtx, offX + c, offY + r, shape[r][c], NB);
 }
 
+function loadScores() {
+  try {
+    return JSON.parse(localStorage.getItem(LS_SCORES_KEY) || '[]');
+  } catch {
+    return [];
+  }
+}
+
+function saveScores(arr) {
+  localStorage.setItem(LS_SCORES_KEY, JSON.stringify(arr));
+}
+
+function isTopScore(s) {
+  const scores = loadScores();
+  return scores.length < TOP_N || s >= scores[scores.length - 1].score;
+}
+
+function renderLeaderboard(highlightEntry) {
+  const scores = loadScores();
+  leaderboardList.innerHTML = '';
+  if (scores.length === 0) {
+    const li = document.createElement('li');
+    li.textContent = 'Sin récords aún';
+    li.style.color = 'var(--text-muted)';
+    leaderboardList.appendChild(li);
+    return;
+  }
+  scores.forEach((entry, i) => {
+    const li = document.createElement('li');
+    const isHighlight = highlightEntry &&
+      entry.name === highlightEntry.name &&
+      entry.score === highlightEntry.score;
+    if (isHighlight) li.classList.add('leaderboard-current');
+    const rank  = document.createElement('span'); rank.className  = 'lb-rank';  rank.textContent  = `${i + 1}.`;
+    const name  = document.createElement('span'); name.className  = 'lb-name';  name.textContent  = entry.name;
+    const scr   = document.createElement('span'); scr.className   = 'lb-score'; scr.textContent   = entry.score.toLocaleString();
+    const meta  = document.createElement('span'); meta.className  = 'lb-meta';  meta.textContent  = `${entry.lines}L ${entry.combo}C`;
+    li.append(rank, name, scr, meta);
+    leaderboardList.appendChild(li);
+  });
+}
+
 function endGame() {
   gameOver = true;
+  maxLines = lines;
   cancelAnimationFrame(animId);
   overlayTitle.textContent = 'GAME OVER';
-  overlayScore.textContent = `Puntuación: ${score.toLocaleString()}`;
+  overlayScore.textContent = `Puntuación: ${score.toLocaleString()} · Líneas: ${lines} · Combo: ${maxCombo}`;
+  renderLeaderboard(null);
+  if (isTopScore(score)) {
+    nameInputSection.classList.remove('hidden');
+    playerNameInput.value = '';
+    saveScoreBtn.disabled = false;
+    setTimeout(() => playerNameInput.focus(), 50);
+  } else {
+    nameInputSection.classList.add('hidden');
+  }
   overlay.classList.remove('hidden');
 }
 
@@ -268,6 +334,9 @@ function init() {
   gameOver = false;
   dropInterval = 1000;
   dropAccum = 0;
+  combo = 0;
+  maxCombo = 0;
+  maxLines = 0;
   lastTime = performance.now();
   next = randomPiece();
   spawn();
@@ -303,5 +372,29 @@ document.addEventListener('keydown', e => {
 });
 
 restartBtn.addEventListener('click', init);
+
+saveScoreBtn.addEventListener('click', function () {
+  if (saveScoreBtn.disabled) return;
+  saveScoreBtn.disabled = true;
+  const name = playerNameInput.value.trim() || 'AAA';
+  const entry = { name, score, lines: maxLines, combo: maxCombo };
+  const scores = loadScores();
+  scores.push(entry);
+  scores.sort((a, b) => b.score - a.score);
+  scores.splice(TOP_N);
+  saveScores(scores);
+  nameInputSection.classList.add('hidden');
+  renderLeaderboard(entry);
+});
+
+playerNameInput.addEventListener('keydown', function (e) {
+  if (e.code === 'Enter') saveScoreBtn.click();
+  e.stopPropagation(); // prevent game keys from firing
+});
+
+resetScoresBtn.addEventListener('click', function () {
+  localStorage.removeItem(LS_SCORES_KEY);
+  renderLeaderboard(null);
+});
 
 init();
