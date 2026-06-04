@@ -199,6 +199,30 @@ kbd {
   background: var(--btn-hover);
 }
 
+/* ---- Powerups legend ---- */
+.powerups-legend ul {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.powerups-legend li {
+  font-size: 12px;
+  color: var(--control-color);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.pw-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
 /* ---- Theme Toggle ---- */
 .theme-btn {
   background: var(--theme-btn-bg);

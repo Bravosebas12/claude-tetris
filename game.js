@@ -30,6 +30,12 @@ const PIECES = [
 
 const LINE_SCORES = [0, 100, 300, 500, 800];
 
+// Powerups
+const POWERUPS = ['bomb', 'ray', 'gravity'];
+const POWER_COLORS = { bomb: '#e53935', ray: '#fdd835', gravity: '#42a5f5' };
+const POWER_LABELS  = { bomb: '💣', ray: '⚡', gravity: '🌍' };
+const POWERUP_INTERVAL = 5; // líneas entre powerups
+
 const canvas = document.getElementById('board');
 const ctx = canvas.getContext('2d');
 const nextCanvas = document.getElementById('next-canvas');
@@ -44,6 +50,7 @@ const restartBtn = document.getElementById('restart-btn');
 const themeBtn = document.getElementById('theme-btn');
 
 let board, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId;
+let powerupPending, powerupCounter;
 
 function createBoard() {
   return Array.from({ length: ROWS }, () => new Array(COLS).fill(0));
@@ -53,6 +60,21 @@ function randomPiece() {
   const type = Math.floor(Math.random() * 8) + 1;
   const shape = PIECES[type].map(row => [...row]);
   return { type, shape, x: Math.floor(COLS / 2) - Math.floor(shape[0].length / 2), y: 0 };
+}
+
+function randomPowerup() {
+  const type = Math.floor(Math.random() * 8) + 1;
+  const shape = PIECES[type].map(row => [...row]);
+  const power = POWERUPS[Math.floor(Math.random() * POWERUPS.length)];
+  return { type, shape, x: Math.floor(COLS / 2) - Math.floor(shape[0].length / 2), y: 0, power };
+}
+
+function generatePiece() {
+  if (powerupPending) {
+    powerupPending = false;
+    return randomPowerup();
+  }
+  return randomPiece();
 }
 
 function collide(shape, ox, oy) {
@@ -111,6 +133,11 @@ function clearLines() {
     score += (LINE_SCORES[cleared] || 0) * level;
     level = Math.floor(lines / 10) + 1;
     dropInterval = Math.max(100, 1000 - (level - 1) * 90);
+    powerupCounter += cleared;
+    while (powerupCounter >= POWERUP_INTERVAL) {
+      powerupCounter -= POWERUP_INTERVAL;
+      powerupPending = true;
+    }
     updateHUD();
   }
 }
@@ -138,15 +165,66 @@ function softDrop() {
   }
 }
 
+// ---- Powerup effects ----
+
+function pieceAnchor(p) {
+  let sumX = 0, sumY = 0, count = 0;
+  for (let r = 0; r < p.shape.length; r++)
+    for (let c = 0; c < p.shape[r].length; c++)
+      if (p.shape[r][c]) { sumX += p.x + c; sumY += p.y + r; count++; }
+  return { ax: Math.round(sumX / count), ay: Math.round(sumY / count) };
+}
+
+function applyBomb(ax, ay) {
+  let destroyed = 0;
+  for (let r = ay - 1; r <= ay + 1; r++)
+    for (let c = ax - 1; c <= ax + 1; c++)
+      if (r >= 0 && r < ROWS && c >= 0 && c < COLS && board[r][c]) {
+        board[r][c] = 0;
+        destroyed++;
+      }
+  score += destroyed * 10;
+}
+
+function applyRay(ax, ay) {
+  let destroyed = 0;
+  for (let c = 0; c < COLS; c++) if (board[ay][c]) { board[ay][c] = 0; destroyed++; }
+  for (let r = 0; r < ROWS; r++) if (board[r][ax]) { board[r][ax] = 0; destroyed++; }
+  score += destroyed * 10;
+}
+
+
+function applyGravity() {
+  for (let c = 0; c < COLS; c++) {
+    const cells = [];
+    for (let r = 0; r < ROWS; r++) if (board[r][c]) cells.push(board[r][c]);
+    for (let r = 0; r < ROWS; r++)
+      board[r][c] = r < ROWS - cells.length ? 0 : cells[r - (ROWS - cells.length)];
+  }
+}
+
+function applyPowerup(p) {
+  const { ax, ay } = pieceAnchor(p);
+  switch (p.power) {
+    case 'bomb':    applyBomb(ax, ay);   break;
+    case 'ray':     applyRay(ax, ay);    break;
+case 'gravity': applyGravity();      break;
+  }
+}
+
 function lockPiece() {
-  merge();
+  if (current.power) {
+    applyPowerup(current);
+  } else {
+    merge();
+  }
   clearLines();
   spawn();
 }
 
 function spawn() {
   current = next;
-  next = randomPiece();
+  next = generatePiece();
   if (collide(current.shape, current.x, current.y)) {
     endGame();
   }
@@ -157,6 +235,22 @@ function updateHUD() {
   scoreEl.textContent = score.toLocaleString();
   linesEl.textContent = lines;
   levelEl.textContent = level;
+}
+
+function drawPowerCell(context, x, y, power, size, alpha) {
+  context.globalAlpha = alpha ?? 1;
+  context.fillStyle = POWER_COLORS[power];
+  context.fillRect(x * size + 1, y * size + 1, size - 2, size - 2);
+  context.fillStyle = 'rgba(255,255,255,0.18)';
+  context.fillRect(x * size + 1, y * size + 1, size - 2, 4);
+  // label emoji
+  context.globalAlpha = (alpha ?? 1) * 0.9;
+  context.font = `bold ${Math.floor(size * 0.55)}px sans-serif`;
+  context.textAlign = 'center';
+  context.textBaseline = 'middle';
+  context.fillStyle = '#fff';
+  context.fillText(POWER_LABELS[power], x * size + size / 2, y * size + size / 2);
+  context.globalAlpha = 1;
 }
 
 function drawBlock(context, x, y, colorIndex, size, alpha) {
@@ -201,13 +295,22 @@ function draw() {
   const gy = ghostY();
   for (let r = 0; r < current.shape.length; r++)
     for (let c = 0; c < current.shape[r].length; c++)
-      if (current.shape[r][c])
-        drawBlock(ctx, current.x + c, gy + r, current.shape[r][c], BLOCK, 0.2);
+      if (current.shape[r][c]) {
+        if (current.power)
+          drawPowerCell(ctx, current.x + c, gy + r, current.power, BLOCK, 0.2);
+        else
+          drawBlock(ctx, current.x + c, gy + r, current.shape[r][c], BLOCK, 0.2);
+      }
 
   // current piece
   for (let r = 0; r < current.shape.length; r++)
     for (let c = 0; c < current.shape[r].length; c++)
-      drawBlock(ctx, current.x + c, current.y + r, current.shape[r][c], BLOCK);
+      if (current.shape[r][c]) {
+        if (current.power)
+          drawPowerCell(ctx, current.x + c, current.y + r, current.power, BLOCK);
+        else
+          drawBlock(ctx, current.x + c, current.y + r, current.shape[r][c], BLOCK);
+      }
 }
 
 function drawNext() {
@@ -218,7 +321,12 @@ function drawNext() {
   const offY = Math.floor((4 - shape.length) / 2);
   for (let r = 0; r < shape.length; r++)
     for (let c = 0; c < shape[r].length; c++)
-      drawBlock(nextCtx, offX + c, offY + r, shape[r][c], NB);
+      if (shape[r][c]) {
+        if (next.power)
+          drawPowerCell(nextCtx, offX + c, offY + r, next.power, NB);
+        else
+          drawBlock(nextCtx, offX + c, offY + r, shape[r][c], NB);
+      }
 }
 
 function endGame() {
@@ -270,7 +378,9 @@ function init() {
   dropInterval = 1000;
   dropAccum = 0;
   lastTime = performance.now();
-  next = randomPiece();
+  powerupPending = false;
+  powerupCounter = 0;
+  next = generatePiece();
   spawn();
   updateHUD();
   overlay.classList.add('hidden');
