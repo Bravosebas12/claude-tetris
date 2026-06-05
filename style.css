@@ -242,3 +242,30 @@ kbd {
 .theme-btn:hover {
   opacity: 0.85;
 }
+
+/* ---- Skin Selector ---- */
+.skin-select {
+  background: var(--theme-btn-bg);
+  color: var(--theme-btn-color);
+  border: 1px solid var(--theme-btn-border);
+  border-radius: 6px;
+  padding: 7px 10px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  width: 100%;
+  text-align: center;
+  letter-spacing: 1px;
+  transition: background 0.2s, border-color 0.2s, color 0.2s;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.skin-select:hover {
+  opacity: 0.85;
+}
+
+.skin-select:focus {
+  outline: 2px solid var(--value-color);
+  outline-offset: 2px;
+}
