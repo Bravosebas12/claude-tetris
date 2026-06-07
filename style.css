@@ -214,6 +214,43 @@ kbd {
   background: var(--btn-hover);
 }
 
+/* ---- Power-up Toast ---- */
+.power-toast {
+  position: absolute;
+  top: 60px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(10, 10, 20, 0.82);
+  color: #ffd700;
+  border: 1px solid #ffd700;
+  border-radius: 8px;
+  padding: 8px 20px;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: 2px;
+  backdrop-filter: blur(6px);
+  pointer-events: none;
+  z-index: 10;
+  white-space: nowrap;
+  animation: toast-pop 0.15s ease-out;
+}
+
+.power-toast.hidden {
+  display: none;
+}
+
+@keyframes toast-pop {
+  from { opacity: 0; transform: translateX(-50%) scale(0.85); }
+  to   { opacity: 1; transform: translateX(-50%) scale(1); }
+}
+
+body.light-mode .power-toast {
+  background: rgba(220, 220, 240, 0.88);
+  color: #996600;
+  border-color: #cc9900;
+}
+
 /* ---- Theme Toggle ---- */
 .theme-toggle {
   display: flex;
