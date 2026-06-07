@@ -301,4 +301,25 @@ document.addEventListener('keydown', e => {
 
 restartBtn.addEventListener('click', init);
 
+// --- Theme toggle ---
+const themeToggle = document.getElementById('theme-toggle');
+const themeLabel = document.getElementById('theme-label');
+
+function applyTheme(isLight) {
+  document.body.classList.toggle('light-mode', isLight);
+  themeLabel.textContent = isLight ? 'DARK' : 'LIGHT';
+}
+
+const savedTheme = localStorage.getItem('theme');
+if (savedTheme === 'light') {
+  themeToggle.checked = true;
+  applyTheme(true);
+}
+
+themeToggle.addEventListener('change', () => {
+  const isLight = themeToggle.checked;
+  applyTheme(isLight);
+  localStorage.setItem('theme', isLight ? 'light' : 'dark');
+});
+
 init();
