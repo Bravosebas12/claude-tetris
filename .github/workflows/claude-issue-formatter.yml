@@ -1,0 +1,56 @@
+name: Claude Issue Formatter
+
+on:
+  issues:
+    types: [opened, edited]
+
+jobs:
+  format-issue:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      id-token: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Format issue with Claude
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          claude_args: "--allowedTools Bash(gh issue *)"
+          prompt: |
+            Eres un formateador de issues de GitHub para un proyecto de Tetris (JavaScript/HTML/CSS vanilla, sin dependencias).
+            Un issue acaba de ser ${{ github.event.action }} con los siguientes detalles:
+            - Número de issue: #${{ github.event.issue.number }}
+            - Título: ${{ github.event.issue.title }}
+            - Descripción: ${{ github.event.issue.body }}
+            - Autor: ${{ github.event.issue.user.login }}
+
+            Tus tareas:
+            1. **Agregar etiquetas** según el contenido del issue. Usa solo estas etiquetas:
+               - `bug` — algo está roto o funciona incorrectamente
+               - `enhancement` — solicitud de nueva funcionalidad o mejora
+               - `question` — pregunta o solicitud de aclaración
+               - `documentation` — la documentación necesita actualizarse
+               - `good first issue` — tarea simple, amigable para principiantes
+               - `duplicate` — si parece un problema conocido o repetido
+
+            2. **Publicar un comentario** en el issue que incluya:
+               - Un breve resumen amigable sobre de qué trata el issue (1-2 oraciones)
+               - Una sección "Reporte Formateado" con:
+                 - **Tipo**: Bug / Solicitud de funcionalidad / Pregunta / Otro
+                 - **Resumen**: una oración clara describiendo el problema o solicitud
+                 - **Pasos para reproducir** (para bugs): listarlos si no fueron provistos, o pedir al usuario que los provea
+                 - **Comportamiento esperado** (para bugs): qué debería suceder
+                 - **Etiquetas sugeridas**: las etiquetas aplicadas y por qué
+               - Una nota final agradeciendo al colaborador
+
+            Usa el CLI `gh` para aplicar etiquetas y publicar el comentario. Ejemplos:
+              gh issue edit ${{ github.event.issue.number }} --add-label "bug" --repo ${{ github.repository }}
+              gh issue comment ${{ github.event.issue.number }} --body "..." --repo ${{ github.repository }}
+
+            Sé conciso, útil y amigable. Responde siempre en español.
