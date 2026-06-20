@@ -1,0 +1,94 @@
+name: Claude Issue Triage
+
+on:
+  issues:
+    types: [opened, edited]
+
+# Evita ejecuciones solapadas si el issue se edita varias veces seguidas
+concurrency:
+  group: issue-triage-${{ github.event.issue.number }}
+  cancel-in-progress: true
+
+jobs:
+  triage:
+    # No re-disparar cuando el editor es un bot (evita loops por ediciones automáticas)
+    if: ${{ github.event.issue.user.type != 'Bot' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write       # necesario para añadir labels y comentar
+      id-token: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Run Claude Issue Triage
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          claude_args: '--allowed-tools "Bash(gh issue view:*),Bash(gh issue edit:*),Bash(gh issue comment:*),Bash(gh label list:*),Bash(gh label create:*)"'
+          prompt: |
+            Sos un asistente de triage de issues para un repositorio de un juego
+            de Tetris en JavaScript vanilla (HTML5 Canvas + CSS, sin build ni
+            dependencias). Los tres archivos fuente son `index.html`,
+            `style.css` y `game.js` (toda la lógica del juego vive en `game.js`).
+            La UI y el README están en español: escribí todo lo orientado al
+            usuario en español.
+
+            El issue a analizar es el número ${{ github.event.issue.number }}.
+            Título: "${{ github.event.issue.title }}".
+
+            Pasos a seguir:
+
+            1. Leé el contexto completo del issue con:
+               `gh issue view ${{ github.event.issue.number }} --json title,body,labels,comments`
+               Tené en cuenta los labels ya asignados y los comentarios previos
+               (incluido cualquier comentario de triage tuyo anterior si el
+               issue fue editado).
+
+            2. Asigná labels SOLO de este set predefinido (no inventes labels
+               nuevos fuera de esta lista):
+               - `bug`          : algo no funciona como debería
+               - `enhancement`  : mejora o nueva funcionalidad
+               - `question`     : duda o consulta
+               - `documentation`: README / CLAUDE.md / comentarios
+               - `ui`           : apariencia / CSS / layout del tablero
+               - `gameplay`     : mecánica del juego (piezas, rotación, colisiones, puntaje)
+               - `performance`  : rendimiento / loop de render
+               - `needs-info`   : falta información para diagnosticar
+
+               Antes de asignar, listá los labels existentes con
+               `gh label list`. Si alguno del set que necesitás no existe,
+               creálo (idempotente) con, por ejemplo:
+               `gh label create bug --description "Algo no funciona como debería" --color d73a4a --force`
+               Elegí solo los labels que correspondan (puede ser más de uno) y
+               aplicalos con:
+               `gh issue edit ${{ github.event.issue.number }} --add-label "label1,label2"`
+
+            3. Publicá UN comentario en español en el issue con
+               `gh issue comment ${{ github.event.issue.number }} --body "..."`
+               siguiendo esta estructura en Markdown:
+
+               ## 🤖 Triage automático
+
+               **Resumen:** qué pide o reporta el issue en 1-2 frases.
+
+               **Diagnóstico:** causa probable y áreas del código involucradas,
+               referenciando `game.js`, `style.css` o `index.html` según
+               corresponda (por ejemplo: colisiones/rotación en `game.js`,
+               estilos del tablero en `style.css`, IDs de DOM o tamaño del
+               canvas en `index.html`).
+
+               **Posible enfoque de solución:** pasos de alto nivel. NO escribas
+               el código final todavía; solo describí la estrategia.
+
+               **Labels asignados:** lista de los labels que pusiste.
+
+               Si falta información para diagnosticar bien, indicá qué hace falta
+               y asigná el label `needs-info`.
+
+               Si el issue fue editado y ya existe un comentario de triage tuyo,
+               dejá claro al inicio del nuevo comentario que se trata de una
+               reevaluación tras la edición.
