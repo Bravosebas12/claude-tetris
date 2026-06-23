@@ -12,6 +12,14 @@
       <canvas id="board" width="300" height="600"></canvas>
 
       <aside class="panel">
+        <div class="panel-section theme-toggle-section">
+          <span class="label">MODO CLARO</span>
+          <label class="theme-switch">
+            <input type="checkbox" id="theme-toggle" />
+            <span class="theme-switch-slider"></span>
+          </label>
+        </div>
+
         <div class="panel-section">
           <span class="label">SCORE</span>
           <span class="value" id="score">0</span>
@@ -37,7 +45,7 @@
             <li><kbd>↑</kbd> rotar</li>
             <li><kbd>↓</kbd> bajar</li>
             <li><kbd>Space</kbd> caída</li>
-            <li><kbd>P</kbd> pausa</li>
+            <li><kbd>P</kbd>/<kbd>Esc</kbd> pausa</li>
           </ul>
         </div>
       </aside>
@@ -47,6 +55,34 @@
       <div class="overlay-box">
         <p id="overlay-title">GAME OVER</p>
         <p id="overlay-score"></p>
+
+        <div id="pause-menu" class="pause-menu hidden">
+          <div class="pause-menu-row">
+            <label class="label" for="level-select">NIVEL INICIAL</label>
+            <select id="level-select">
+              <option value="1">1</option>
+              <option value="2">2</option>
+              <option value="3">3</option>
+              <option value="4">4</option>
+              <option value="5">5</option>
+              <option value="6">6</option>
+              <option value="7">7</option>
+              <option value="8">8</option>
+              <option value="9">9</option>
+              <option value="10">10</option>
+            </select>
+          </div>
+          <button id="resume-btn">Reanudar</button>
+          <button id="controls-btn">Ver controles</button>
+          <ul id="pause-controls-list" class="pause-controls-list hidden">
+            <li><kbd>←</kbd><kbd>→</kbd> mover</li>
+            <li><kbd>↑</kbd> rotar</li>
+            <li><kbd>↓</kbd> bajar</li>
+            <li><kbd>Space</kbd> caída</li>
+            <li><kbd>P</kbd>/<kbd>Esc</kbd> pausa</li>
+          </ul>
+        </div>
+
         <button id="restart-btn">Reiniciar</button>
       </div>
     </div>

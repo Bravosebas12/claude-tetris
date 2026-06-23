@@ -11,8 +11,10 @@ const COLORS = [
   '#ba68c8', // T - purple
   '#81c784', // S - green
   '#e57373', // Z - red
-  '#7986cb', // J - indigo
+  '#64b5f6', // J - pale blue
   '#ffb74d', // L - orange
+  '#90a4ae', // Tuerca - gris metálico
+  '#d32f2f', // Bomba - rojo intenso
 ];
 
 const PIECES = [
@@ -24,9 +26,13 @@ const PIECES = [
   [[5,5,0],[0,5,5],[0,0,0]],                  // Z
   [[6,0,0],[6,6,6],[0,0,0]],                  // J
   [[0,0,7],[7,7,7],[0,0,0]],                  // L
+  [[8,8,8],[8,0,8],[8,8,8]],                  // Tuerca - marco con hueco central
 ];
 
 const LINE_SCORES = [0, 100, 300, 500, 800];
+const BOMB_TYPE = 9;
+const BOMB_EVERY_LINES = 10;
+const BOMB_SCORE = 50;
 
 const canvas = document.getElementById('board');
 const ctx = canvas.getContext('2d');
@@ -39,17 +45,85 @@ const overlay = document.getElementById('overlay');
 const overlayTitle = document.getElementById('overlay-title');
 const overlayScore = document.getElementById('overlay-score');
 const restartBtn = document.getElementById('restart-btn');
+const themeToggle = document.getElementById('theme-toggle');
+const pauseMenu = document.getElementById('pause-menu');
+const resumeBtn = document.getElementById('resume-btn');
+const controlsBtn = document.getElementById('controls-btn');
+const pauseControlsList = document.getElementById('pause-controls-list');
+const levelSelect = document.getElementById('level-select');
 
-let board, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId;
+const THEME_KEY = 'tetris-theme';
+const START_LEVEL_KEY = 'tetris-start-level';
+
+let board, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId, bombReady;
+let gridLineColor, blockHighlightColor;
+
+function readThemeColors() {
+  const styles = getComputedStyle(document.documentElement);
+  gridLineColor = styles.getPropertyValue('--grid-line').trim();
+  blockHighlightColor = styles.getPropertyValue('--block-highlight').trim();
+}
+
+function applyTheme(theme) {
+  document.body.classList.toggle('light', theme === 'light');
+  themeToggle.checked = theme === 'light';
+  readThemeColors();
+}
+
+function initTheme() {
+  const saved = localStorage.getItem(THEME_KEY);
+  applyTheme(saved === 'light' ? 'light' : 'dark');
+}
+
+themeToggle.addEventListener('change', () => {
+  const theme = themeToggle.checked ? 'light' : 'dark';
+  localStorage.setItem(THEME_KEY, theme);
+  applyTheme(theme);
+  draw();
+  drawNext();
+});
+
+initTheme();
+
+function clampStartLevel(value) {
+  const n = parseInt(value, 10);
+  if (Number.isNaN(n)) return 1;
+  return Math.min(10, Math.max(1, n));
+}
+
+function getStartLevel() {
+  return clampStartLevel(localStorage.getItem(START_LEVEL_KEY) || 1);
+}
+
+function setStartLevel(value) {
+  const clamped = clampStartLevel(value);
+  localStorage.setItem(START_LEVEL_KEY, String(clamped));
+  return clamped;
+}
+
+function initStartLevel() {
+  const startLevel = getStartLevel();
+  levelSelect.value = String(startLevel);
+}
+
+levelSelect.addEventListener('change', () => {
+  setStartLevel(levelSelect.value);
+});
+
+initStartLevel();
 
 function createBoard() {
   return Array.from({ length: ROWS }, () => new Array(COLS).fill(0));
 }
 
 function randomPiece() {
-  const type = Math.floor(Math.random() * 7) + 1;
+  const type = Math.floor(Math.random() * 8) + 1;
   const shape = PIECES[type].map(row => [...row]);
   return { type, shape, x: Math.floor(COLS / 2) - Math.floor(shape[0].length / 2), y: 0 };
+}
+
+function makeBomb() {
+  return { type: BOMB_TYPE, shape: [[BOMB_TYPE]], isBomb: true, x: Math.floor(COLS / 2), y: 0 };
 }
 
 function collide(shape, ox, oy) {
@@ -93,6 +167,10 @@ function merge() {
         board[current.y + r][current.x + c] = current.shape[r][c];
 }
 
+function dropIntervalForLevel(lvl) {
+  return Math.max(100, 1000 - (lvl - 1) * 90);
+}
+
 function clearLines() {
   let cleared = 0;
   for (let r = ROWS - 1; r >= 0; r--) {
@@ -104,10 +182,14 @@ function clearLines() {
     }
   }
   if (cleared) {
+    const prevLines = lines;
     lines += cleared;
     score += (LINE_SCORES[cleared] || 0) * level;
     level = Math.floor(lines / 10) + 1;
-    dropInterval = Math.max(100, 1000 - (level - 1) * 90);
+    dropInterval = dropIntervalForLevel(level);
+    if (Math.floor(lines / BOMB_EVERY_LINES) > Math.floor(prevLines / BOMB_EVERY_LINES)) {
+      bombReady = true;
+    }
     updateHUD();
   }
 }
@@ -136,14 +218,49 @@ function softDrop() {
 }
 
 function lockPiece() {
-  merge();
-  clearLines();
+  if (current.isBomb) {
+    detonate();
+  } else {
+    merge();
+    clearLines();
+  }
   spawn();
+}
+
+function detonate() {
+  const cx = current.x;
+  const cy = current.y;
+  for (let r = cy - 1; r <= cy + 1; r++) {
+    if (r < 0 || r >= ROWS) continue;
+    for (let c = cx - 1; c <= cx + 1; c++) {
+      if (c < 0 || c >= COLS) continue;
+      board[r][c] = 0;
+    }
+  }
+  score += BOMB_SCORE * level;
+  applyGravity();
+  clearLines();
+  updateHUD();
+}
+
+function applyGravity() {
+  for (let c = 0; c < COLS; c++) {
+    let write = ROWS - 1;
+    for (let r = ROWS - 1; r >= 0; r--) {
+      if (board[r][c]) {
+        board[write][c] = board[r][c];
+        if (write !== r) board[r][c] = 0;
+        write--;
+      }
+    }
+    for (let r = write; r >= 0; r--) board[r][c] = 0;
+  }
 }
 
 function spawn() {
   current = next;
-  next = randomPiece();
+  next = bombReady ? makeBomb() : randomPiece();
+  bombReady = false;
   if (collide(current.shape, current.x, current.y)) {
     endGame();
   }
@@ -163,13 +280,29 @@ function drawBlock(context, x, y, colorIndex, size, alpha) {
   context.fillStyle = color;
   context.fillRect(x * size + 1, y * size + 1, size - 2, size - 2);
   // highlight
-  context.fillStyle = 'rgba(255,255,255,0.12)';
+  context.fillStyle = blockHighlightColor;
   context.fillRect(x * size + 1, y * size + 1, size - 2, 4);
+
+  if (colorIndex === BOMB_TYPE) {
+    const cx = x * size + size / 2;
+    const cy = y * size + size / 2;
+    context.beginPath();
+    context.arc(cx, cy, size * 0.28, 0, Math.PI * 2);
+    context.fillStyle = '#1a1a1a';
+    context.fill();
+    context.strokeStyle = blockHighlightColor;
+    context.lineWidth = 1;
+    context.beginPath();
+    context.moveTo(cx + size * 0.12, cy - size * 0.28);
+    context.lineTo(cx + size * 0.22, cy - size * 0.4);
+    context.stroke();
+  }
+
   context.globalAlpha = 1;
 }
 
 function drawGrid() {
-  ctx.strokeStyle = '#22222e';
+  ctx.strokeStyle = gridLineColor;
   ctx.lineWidth = 0.5;
   for (let c = 1; c < COLS; c++) {
     ctx.beginPath();
@@ -221,6 +354,9 @@ function drawNext() {
 function endGame() {
   gameOver = true;
   cancelAnimationFrame(animId);
+  pauseMenu.classList.add('hidden');
+  pauseControlsList.classList.add('hidden');
+  restartBtn.classList.remove('hidden');
   overlayTitle.textContent = 'GAME OVER';
   overlayScore.textContent = `Puntuación: ${score.toLocaleString()}`;
   overlay.classList.remove('hidden');
@@ -230,17 +366,24 @@ function togglePause() {
   if (gameOver) return;
   paused = !paused;
   if (!paused) {
+    overlay.classList.add('hidden');
+    pauseMenu.classList.add('hidden');
+    pauseControlsList.classList.add('hidden');
     lastTime = performance.now();
     loop(lastTime);
   } else {
     cancelAnimationFrame(animId);
     overlayTitle.textContent = 'PAUSA';
     overlayScore.textContent = '';
+    restartBtn.classList.add('hidden');
+    initStartLevel();
+    pauseMenu.classList.remove('hidden');
     overlay.classList.remove('hidden');
   }
 }
 
 function loop(ts) {
+  if (gameOver || paused) return;
   const dt = ts - lastTime;
   lastTime = ts;
   dropAccum += dt;
@@ -259,23 +402,28 @@ function loop(ts) {
 function init() {
   board = createBoard();
   score = 0;
-  lines = 0;
-  level = 1;
+  level = getStartLevel();
+  lines = (level - 1) * 10;
   paused = false;
   gameOver = false;
-  dropInterval = 1000;
+  bombReady = false;
+  dropInterval = dropIntervalForLevel(level);
   dropAccum = 0;
   lastTime = performance.now();
   next = randomPiece();
   spawn();
   updateHUD();
   overlay.classList.add('hidden');
+  pauseMenu.classList.add('hidden');
+  pauseControlsList.classList.add('hidden');
+  restartBtn.classList.remove('hidden');
   cancelAnimationFrame(animId);
   animId = requestAnimationFrame(loop);
 }
 
 document.addEventListener('keydown', e => {
-  if (e.code === 'KeyP') { togglePause(); return; }
+  if (e.code === 'Escape' && document.activeElement === levelSelect) return;
+  if (e.code === 'KeyP' || e.code === 'Escape') { togglePause(); return; }
   if (paused || gameOver) return;
   switch (e.code) {
     case 'ArrowLeft':
@@ -300,5 +448,13 @@ document.addEventListener('keydown', e => {
 });
 
 restartBtn.addEventListener('click', init);
+
+resumeBtn.addEventListener('click', () => {
+  if (paused) togglePause();
+});
+
+controlsBtn.addEventListener('click', () => {
+  pauseControlsList.classList.toggle('hidden');
+});
 
 init();
