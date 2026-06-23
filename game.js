@@ -4,16 +4,71 @@ const COLS = 10;
 const ROWS = 20;
 const BLOCK = 30;
 
-const COLORS = [
-  null,
-  '#4dd0e1', // I - cyan
-  '#ffd54f', // O - yellow
-  '#ba68c8', // T - purple
-  '#81c784', // S - green
-  '#e57373', // Z - red
-  '#7986cb', // J - indigo
-  '#ffb74d', // L - orange
-];
+const SKINS = {
+  retro: {
+    name: 'retro',
+    colors: [
+      null,
+      '#4dd0e1', // I - cyan
+      '#ffd54f', // O - yellow
+      '#ba68c8', // T - purple
+      '#81c784', // S - green
+      '#e57373', // Z - red
+      '#64b5f6', // J - pale blue
+      '#ffb74d', // L - orange
+      '#90a4ae', // Tuerca - gris metálico
+      '#d32f2f', // Bomba - rojo intenso
+    ],
+  },
+  neon: {
+    name: 'neon',
+    glow: true,
+    colors: [
+      null,
+      '#00f6ff', // I - cyan neón
+      '#fff200', // O - amarillo neón
+      '#e040fb', // T - magenta neón
+      '#39ff14', // S - verde neón
+      '#ff1744', // Z - rojo neón
+      '#2979ff', // J - azul neón
+      '#ff9100', // L - naranja neón
+      '#b0bec5', // Tuerca - gris claro
+      '#ff3d00', // Bomba - naranja-rojo intenso
+    ],
+  },
+  pastel: {
+    name: 'pastel',
+    rounded: true,
+    colors: [
+      null,
+      '#b3e5fc', // I - celeste pastel
+      '#fff9c4', // O - amarillo pastel
+      '#e1bee7', // T - lila pastel
+      '#c8e6c9', // S - verde pastel
+      '#ffcdd2', // Z - rosa pastel
+      '#bbdefb', // J - azul pastel
+      '#ffe0b2', // L - naranja pastel
+      '#cfd8dc', // Tuerca - gris pastel
+      '#f8bbd0', // Bomba - rosa fuerte pastel
+    ],
+  },
+  pixel: {
+    name: 'pixel',
+    texture: true,
+    colors: [
+      null,
+      '#4dd0e1', // I - cyan
+      '#ffd54f', // O - yellow
+      '#ba68c8', // T - purple
+      '#81c784', // S - green
+      '#e57373', // Z - red
+      '#64b5f6', // J - pale blue
+      '#ffb74d', // L - orange
+      '#90a4ae', // Tuerca - gris metálico
+      '#d32f2f', // Bomba - rojo intenso
+    ],
+  },
+};
 
 const PIECES = [
   null,
@@ -24,9 +79,13 @@ const PIECES = [
   [[5,5,0],[0,5,5],[0,0,0]],                  // Z
   [[6,0,0],[6,6,6],[0,0,0]],                  // J
   [[0,0,7],[7,7,7],[0,0,0]],                  // L
+  [[8,8,8],[8,0,8],[8,8,8]],                  // Tuerca - marco con hueco central
 ];
 
 const LINE_SCORES = [0, 100, 300, 500, 800];
+const BOMB_TYPE = 9;
+const BOMB_EVERY_LINES = 10;
+const BOMB_SCORE = 50;
 
 const canvas = document.getElementById('board');
 const ctx = canvas.getContext('2d');
@@ -39,17 +98,81 @@ const overlay = document.getElementById('overlay');
 const overlayTitle = document.getElementById('overlay-title');
 const overlayScore = document.getElementById('overlay-score');
 const restartBtn = document.getElementById('restart-btn');
+const themeToggle = document.getElementById('theme-toggle');
+const skinSelect = document.getElementById('skin-select');
 
-let board, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId;
+const THEME_KEY = 'tetris-theme';
+const SKIN_KEY = 'tetris-skin';
+
+let board, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId, bombReady;
+let gridLineColor, blockHighlightColor;
+let activeSkin = SKINS.retro;
+
+function readThemeColors() {
+  const styles = getComputedStyle(document.documentElement);
+  gridLineColor = styles.getPropertyValue('--grid-line').trim();
+  blockHighlightColor = styles.getPropertyValue('--block-highlight').trim();
+}
+
+function applyTheme(theme) {
+  document.body.classList.toggle('light', theme === 'light');
+  themeToggle.checked = theme === 'light';
+  readThemeColors();
+}
+
+function initTheme() {
+  const saved = localStorage.getItem(THEME_KEY);
+  applyTheme(saved === 'light' ? 'light' : 'dark');
+}
+
+themeToggle.addEventListener('change', () => {
+  const theme = themeToggle.checked ? 'light' : 'dark';
+  localStorage.setItem(THEME_KEY, theme);
+  applyTheme(theme);
+  draw();
+  drawNext();
+});
+
+initTheme();
+
+function applySkin(skinName) {
+  const skin = SKINS[skinName] || SKINS.retro;
+  activeSkin = skin;
+  document.body.classList.remove('skin-retro', 'skin-neon', 'skin-pastel', 'skin-pixel');
+  document.body.classList.add(`skin-${skin.name}`);
+  if (skinSelect) skinSelect.value = skin.name;
+  readThemeColors();
+}
+
+function initSkin() {
+  const saved = localStorage.getItem(SKIN_KEY);
+  applySkin(SKINS[saved] ? saved : 'retro');
+}
+
+if (skinSelect) {
+  skinSelect.addEventListener('change', () => {
+    const skinName = skinSelect.value;
+    localStorage.setItem(SKIN_KEY, skinName);
+    applySkin(skinName);
+    draw();
+    drawNext();
+  });
+}
+
+initSkin();
 
 function createBoard() {
   return Array.from({ length: ROWS }, () => new Array(COLS).fill(0));
 }
 
 function randomPiece() {
-  const type = Math.floor(Math.random() * 7) + 1;
+  const type = Math.floor(Math.random() * 8) + 1;
   const shape = PIECES[type].map(row => [...row]);
   return { type, shape, x: Math.floor(COLS / 2) - Math.floor(shape[0].length / 2), y: 0 };
+}
+
+function makeBomb() {
+  return { type: BOMB_TYPE, shape: [[BOMB_TYPE]], isBomb: true, x: Math.floor(COLS / 2), y: 0 };
 }
 
 function collide(shape, ox, oy) {
@@ -104,10 +227,14 @@ function clearLines() {
     }
   }
   if (cleared) {
+    const prevLines = lines;
     lines += cleared;
     score += (LINE_SCORES[cleared] || 0) * level;
     level = Math.floor(lines / 10) + 1;
     dropInterval = Math.max(100, 1000 - (level - 1) * 90);
+    if (Math.floor(lines / BOMB_EVERY_LINES) > Math.floor(prevLines / BOMB_EVERY_LINES)) {
+      bombReady = true;
+    }
     updateHUD();
   }
 }
@@ -136,14 +263,49 @@ function softDrop() {
 }
 
 function lockPiece() {
-  merge();
-  clearLines();
+  if (current.isBomb) {
+    detonate();
+  } else {
+    merge();
+    clearLines();
+  }
   spawn();
+}
+
+function detonate() {
+  const cx = current.x;
+  const cy = current.y;
+  for (let r = cy - 1; r <= cy + 1; r++) {
+    if (r < 0 || r >= ROWS) continue;
+    for (let c = cx - 1; c <= cx + 1; c++) {
+      if (c < 0 || c >= COLS) continue;
+      board[r][c] = 0;
+    }
+  }
+  score += BOMB_SCORE * level;
+  applyGravity();
+  clearLines();
+  updateHUD();
+}
+
+function applyGravity() {
+  for (let c = 0; c < COLS; c++) {
+    let write = ROWS - 1;
+    for (let r = ROWS - 1; r >= 0; r--) {
+      if (board[r][c]) {
+        board[write][c] = board[r][c];
+        if (write !== r) board[r][c] = 0;
+        write--;
+      }
+    }
+    for (let r = write; r >= 0; r--) board[r][c] = 0;
+  }
 }
 
 function spawn() {
   current = next;
-  next = randomPiece();
+  next = bombReady ? makeBomb() : randomPiece();
+  bombReady = false;
   if (collide(current.shape, current.x, current.y)) {
     endGame();
   }
@@ -158,18 +320,93 @@ function updateHUD() {
 
 function drawBlock(context, x, y, colorIndex, size, alpha) {
   if (!colorIndex) return;
-  const color = COLORS[colorIndex];
+  const color = activeSkin.colors[colorIndex];
+  const px = x * size + 1;
+  const py = y * size + 1;
+  const w = size - 2;
+  const h = size - 2;
+
   context.globalAlpha = alpha ?? 1;
+
+  if (activeSkin.glow) {
+    context.shadowColor = color;
+    context.shadowBlur = size * 0.5;
+  }
+
   context.fillStyle = color;
-  context.fillRect(x * size + 1, y * size + 1, size - 2, size - 2);
+  if (activeSkin.rounded && context.roundRect) {
+    context.beginPath();
+    context.roundRect(px, py, w, h, size * 0.22);
+    context.fill();
+  } else {
+    context.fillRect(px, py, w, h);
+  }
+
+  if (activeSkin.glow) {
+    context.shadowBlur = 0;
+  }
+
   // highlight
-  context.fillStyle = 'rgba(255,255,255,0.12)';
-  context.fillRect(x * size + 1, y * size + 1, size - 2, 4);
+  context.fillStyle = blockHighlightColor;
+  if (activeSkin.rounded && context.roundRect) {
+    context.beginPath();
+    context.roundRect(px, py, w, 4, [size * 0.22, size * 0.22, 0, 0]);
+    context.fill();
+  } else {
+    context.fillRect(px, py, w, 4);
+  }
+
+  if (activeSkin.texture) {
+    drawPixelTexture(context, px, py, w, h);
+  }
+
+  if (colorIndex === BOMB_TYPE) {
+    const cx = x * size + size / 2;
+    const cy = y * size + size / 2;
+    context.beginPath();
+    context.arc(cx, cy, size * 0.28, 0, Math.PI * 2);
+    context.fillStyle = '#1a1a1a';
+    context.fill();
+    context.strokeStyle = blockHighlightColor;
+    context.lineWidth = 1;
+    context.beginPath();
+    context.moveTo(cx + size * 0.12, cy - size * 0.28);
+    context.lineTo(cx + size * 0.22, cy - size * 0.4);
+    context.stroke();
+  }
+
   context.globalAlpha = 1;
 }
 
+function drawPixelTexture(context, px, py, w, h) {
+  // Checkerboard de píxeles oscuros/claros para look pixel-art, barato (pocos fillRect).
+  const cell = Math.max(3, Math.floor(Math.min(w, h) / 5));
+  context.fillStyle = 'rgba(0, 0, 0, 0.12)';
+  for (let gy = 0; gy * cell < h; gy++) {
+    for (let gx = 0; gx * cell < w; gx++) {
+      if ((gx + gy) % 2 === 0) continue;
+      const bx = px + gx * cell;
+      const by = py + gy * cell;
+      const bw = Math.min(cell, px + w - bx);
+      const bh = Math.min(cell, py + h - by);
+      context.fillRect(bx, by, bw, bh);
+    }
+  }
+  context.fillStyle = 'rgba(255, 255, 255, 0.08)';
+  for (let gy = 0; gy * cell < h; gy++) {
+    for (let gx = 0; gx * cell < w; gx++) {
+      if ((gx + gy) % 2 !== 0) continue;
+      const bx = px + gx * cell;
+      const by = py + gy * cell;
+      const bw = Math.min(cell, px + w - bx);
+      const bh = Math.min(cell, py + h - by);
+      context.fillRect(bx, by, bw, bh);
+    }
+  }
+}
+
 function drawGrid() {
-  ctx.strokeStyle = '#22222e';
+  ctx.strokeStyle = gridLineColor;
   ctx.lineWidth = 0.5;
   for (let c = 1; c < COLS; c++) {
     ctx.beginPath();
@@ -241,6 +478,7 @@ function togglePause() {
 }
 
 function loop(ts) {
+  if (gameOver || paused) return;
   const dt = ts - lastTime;
   lastTime = ts;
   dropAccum += dt;
@@ -263,6 +501,7 @@ function init() {
   level = 1;
   paused = false;
   gameOver = false;
+  bombReady = false;
   dropInterval = 1000;
   dropAccum = 0;
   lastTime = performance.now();
