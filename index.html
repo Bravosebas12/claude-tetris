@@ -8,6 +8,7 @@
 </head>
 <body>
   <div class="wrapper">
+    <h1 class="game-title">TETRIS</h1>
     <div class="game-container">
       <canvas id="board" width="300" height="600"></canvas>
 
@@ -25,9 +26,38 @@
           <span class="value" id="level">1</span>
         </div>
 
+        <div class="panel-section leaderboard-section">
+          <span class="label">TOP 5</span>
+          <ol id="hud-leaderboard" class="leaderboard-list"></ol>
+          <div class="records-stats">
+            <div class="stat-row"><span class="label">MEJOR COMBO</span><span class="value small" id="hud-best-combo">0</span></div>
+            <div class="stat-row"><span class="label">LÍNEAS MÁX</span><span class="value small" id="hud-max-lines">0</span></div>
+          </div>
+          <button id="reset-records-btn" type="button" class="ghost-btn">Resetear records</button>
+        </div>
+
         <div class="panel-section">
           <span class="label">NEXT</span>
           <canvas id="next-canvas" width="120" height="120"></canvas>
+        </div>
+
+        <div class="panel-section theme-toggle">
+          <span class="label">TEMA</span>
+          <label class="toggle-switch" title="Cambiar tema">
+            <input type="checkbox" id="theme-toggle" checked />
+            <span class="toggle-slider"></span>
+            <span class="toggle-icon" id="theme-icon">🌙</span>
+          </label>
+        </div>
+
+        <div class="panel-section skin-select-section">
+          <span class="label">SKIN</span>
+          <select id="skin-select" title="Cambiar skin visual">
+            <option value="retro">Retro</option>
+            <option value="neon">Neon</option>
+            <option value="pastel">Pastel</option>
+            <option value="pixel">Pixel Art</option>
+          </select>
         </div>
 
         <div class="panel-section controls">
@@ -37,7 +67,7 @@
             <li><kbd>↑</kbd> rotar</li>
             <li><kbd>↓</kbd> bajar</li>
             <li><kbd>Space</kbd> caída</li>
-            <li><kbd>P</kbd> pausa</li>
+            <li><kbd>P</kbd> / <kbd>Esc</kbd> pausa</li>
           </ul>
         </div>
       </aside>
@@ -47,7 +77,53 @@
       <div class="overlay-box">
         <p id="overlay-title">GAME OVER</p>
         <p id="overlay-score"></p>
-        <button id="restart-btn">Reiniciar</button>
+        <div id="overlay-records" class="hidden">
+          <form id="name-form" class="hidden">
+            <input id="name-input" maxlength="3" placeholder="AAA" autocomplete="off" />
+            <button type="submit">Guardar</button>
+          </form>
+          <div class="leaderboard-block">
+            <span class="label">TOP 5</span>
+            <ol id="overlay-leaderboard" class="leaderboard-list"></ol>
+          </div>
+          <div class="records-stats">
+            <div class="stat-row"><span class="label">MEJOR COMBO</span><span class="value small" id="overlay-best-combo">0</span></div>
+            <div class="stat-row"><span class="label">LÍNEAS MÁX</span><span class="value small" id="overlay-max-lines">0</span></div>
+          </div>
+        </div>
+        <button id="restart-btn" class="menu-btn">Reiniciar</button>
+
+        <div id="pause-menu" class="hidden">
+          <button id="resume-btn" class="menu-btn">Reanudar</button>
+          <button id="pause-restart-btn" class="menu-btn">Reiniciar</button>
+          <button id="controls-btn" class="menu-btn">Ver controles</button>
+          <div class="level-select">
+            <label for="start-level-select">Nivel inicial</label>
+            <select id="start-level-select">
+              <option value="1">1</option>
+              <option value="2">2</option>
+              <option value="3">3</option>
+              <option value="4">4</option>
+              <option value="5">5</option>
+              <option value="6">6</option>
+              <option value="7">7</option>
+              <option value="8">8</option>
+              <option value="9">9</option>
+              <option value="10">10</option>
+            </select>
+          </div>
+        </div>
+
+        <div id="controls-view" class="controls hidden">
+          <ul>
+            <li><kbd>←</kbd><kbd>→</kbd> mover</li>
+            <li><kbd>↑</kbd> rotar</li>
+            <li><kbd>↓</kbd> bajar</li>
+            <li><kbd>Space</kbd> caída</li>
+            <li><kbd>P</kbd> / <kbd>Esc</kbd> pausa</li>
+          </ul>
+          <button id="controls-back-btn" class="menu-btn">Volver</button>
+        </div>
       </div>
     </div>
   </div>
