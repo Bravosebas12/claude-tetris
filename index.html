@@ -26,6 +26,16 @@
           <span class="value" id="level">1</span>
         </div>
 
+        <div class="panel-section leaderboard-section">
+          <span class="label">TOP 5</span>
+          <ol id="hud-leaderboard" class="leaderboard-list"></ol>
+          <div class="records-stats">
+            <div class="stat-row"><span class="label">MEJOR COMBO</span><span class="value small" id="hud-best-combo">0</span></div>
+            <div class="stat-row"><span class="label">LÍNEAS MÁX</span><span class="value small" id="hud-max-lines">0</span></div>
+          </div>
+          <button id="reset-records-btn" type="button" class="ghost-btn">Resetear records</button>
+        </div>
+
         <div class="panel-section">
           <span class="label">NEXT</span>
           <canvas id="next-canvas" width="120" height="120"></canvas>
@@ -57,6 +67,20 @@
       <div class="overlay-box">
         <p id="overlay-title">GAME OVER</p>
         <p id="overlay-score"></p>
+        <div id="overlay-records" class="hidden">
+          <form id="name-form" class="hidden">
+            <input id="name-input" maxlength="3" placeholder="AAA" autocomplete="off" />
+            <button type="submit">Guardar</button>
+          </form>
+          <div class="leaderboard-block">
+            <span class="label">TOP 5</span>
+            <ol id="overlay-leaderboard" class="leaderboard-list"></ol>
+          </div>
+          <div class="records-stats">
+            <div class="stat-row"><span class="label">MEJOR COMBO</span><span class="value small" id="overlay-best-combo">0</span></div>
+            <div class="stat-row"><span class="label">LÍNEAS MÁX</span><span class="value small" id="overlay-max-lines">0</span></div>
+          </div>
+        </div>
         <button id="restart-btn">Reiniciar</button>
       </div>
     </div>

@@ -24,6 +24,7 @@
   --grid-color: #22222e;
   --toggle-track: #555570;
   --toggle-thumb: #e0e0e0;
+  --bg-highlight: rgba(122, 162, 247, 0.18);
 }
 
 body.light-mode {
@@ -46,6 +47,7 @@ body.light-mode {
   --grid-color: #d0d0e4;
   --toggle-track: #1d4ed8;
   --toggle-thumb: #f5f5fa;
+  --bg-highlight: rgba(29, 78, 216, 0.12);
 }
 
 body {
@@ -181,6 +183,130 @@ kbd {
   flex-direction: column;
   gap: 12px;
   align-items: center;
+  width: 260px;
+  max-height: 90%;
+  overflow-y: auto;
+}
+
+.hidden {
+  display: none;
+}
+
+/* ---- Leaderboard / records ---- */
+.leaderboard-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-family: 'Courier New', Courier, monospace;
+  width: 100%;
+}
+
+.leaderboard-entry {
+  display: flex;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--color-controls);
+}
+
+.leaderboard-entry .name {
+  flex: 1;
+}
+
+.leaderboard-entry .score {
+  text-align: right;
+}
+
+.leaderboard-list li.empty {
+  color: var(--color-label);
+  font-style: italic;
+  font-family: system-ui, -apple-system, sans-serif;
+  font-size: 12px;
+}
+
+.leaderboard-entry.highlight {
+  color: var(--color-accent);
+  font-weight: 700;
+  background: var(--bg-highlight);
+  border-radius: 4px;
+  padding: 2px 4px;
+}
+
+.records-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 8px;
+  width: 100%;
+}
+
+.stat-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.value.small {
+  font-size: 14px;
+}
+
+.leaderboard-block {
+  width: 100%;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+#name-form {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+#name-form.hidden {
+  display: none;
+}
+
+#name-input {
+  width: 60px;
+  text-align: center;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  font-family: 'Courier New', Courier, monospace;
+  background: var(--bg-kbd);
+  border: 1px solid var(--border-kbd);
+  color: var(--color-text);
+  border-radius: 4px;
+  padding: 6px 4px;
+}
+
+#name-form button[type="submit"] {
+  background: var(--bg-restart-btn);
+  color: var(--color-restart-btn);
+  border: none;
+  border-radius: 4px;
+  padding: 6px 12px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.ghost-btn {
+  background: transparent;
+  border: 1px solid var(--color-error);
+  color: var(--color-error);
+  border-radius: 4px;
+  padding: 6px 10px;
+  font-size: 11px;
+  cursor: pointer;
+  margin-top: 4px;
+  transition: background 0.15s, color 0.15s;
+}
+
+.ghost-btn:hover {
+  background: var(--color-error);
+  color: var(--bg-body);
 }
 
 #overlay-title {
