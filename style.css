@@ -196,7 +196,7 @@ kbd {
   color: var(--color-overlay-score);
 }
 
-#restart-btn {
+.menu-btn {
   margin-top: 8px;
   background: var(--bg-restart-btn);
   color: var(--color-restart-btn);
@@ -210,8 +210,40 @@ kbd {
   transition: background 0.15s;
 }
 
-#restart-btn:hover {
+.menu-btn:hover {
   background: var(--bg-restart-btn-hover);
+}
+
+#pause-menu,
+#controls-view {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: center;
+}
+
+#pause-menu.hidden,
+#controls-view.hidden,
+#restart-btn.hidden {
+  display: none;
+}
+
+.level-select {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+  font-size: 13px;
+  color: var(--color-label);
+}
+
+.level-select select {
+  background: var(--bg-kbd);
+  color: var(--color-text);
+  border: 1px solid var(--border-kbd);
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 13px;
 }
 
 /* ---- Theme Toggle ---- */
