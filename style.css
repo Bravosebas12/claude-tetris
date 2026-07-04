@@ -48,6 +48,28 @@ body.light-mode {
   --toggle-thumb: #f5f5fa;
 }
 
+/* ---- Skins de bloque (independientes del toggle claro/oscuro) ---- */
+body.skin-neon {
+  --bg-board: #05050a;
+  --border-color: #0ff0fc;
+  --grid-color: #10102a;
+  --color-accent: #0ff0fc;
+}
+
+body.skin-pastel {
+  --bg-board: #2e2b38;
+  --border-color: #4a4458;
+  --grid-color: #3a3648;
+  --color-accent: #f6a6c1;
+}
+
+body.skin-pixel {
+  --bg-board: #14141c;
+  --border-color: #4a4a5a;
+  --grid-color: #262633;
+  --color-accent: #8fa8c8;
+}
+
 body {
   background: var(--bg-body);
   color: var(--color-text);
@@ -261,4 +283,22 @@ kbd {
 .toggle-icon {
   font-size: 14px;
   line-height: 1;
+}
+
+/* ---- Skin Select ---- */
+#skin-select {
+  background: var(--bg-kbd);
+  color: var(--color-text);
+  border: 1px solid var(--border-kbd);
+  border-radius: 4px;
+  padding: 4px 6px;
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.25s, border-color 0.25s, color 0.25s;
+}
+
+#skin-select:focus {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
 }
