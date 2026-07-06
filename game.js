@@ -28,6 +28,11 @@ const PIECES = [
 
 const LINE_SCORES = [0, 100, 300, 500, 800];
 
+// Persisted high-score tracking (Unit 2: records + start screen + combo)
+const STORAGE_KEY = 'tetris.leaderboard';
+const MAX_LINES_KEY = 'tetris.maxLines';
+const LEADERBOARD_SIZE = 5;
+
 const canvas = document.getElementById('board');
 const ctx = canvas.getContext('2d');
 const nextCanvas = document.getElementById('next-canvas');
@@ -41,6 +46,10 @@ const overlayScore = document.getElementById('overlay-score');
 const restartBtn = document.getElementById('restart-btn');
 
 let board, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId;
+let combo = 0;
+let bestCombo = 0;
+let maxLines = 0;
+let inStartScreen = false;
 
 function createBoard() {
   return Array.from({ length: ROWS }, () => new Array(COLS).fill(0));
@@ -108,7 +117,11 @@ function clearLines() {
     score += (LINE_SCORES[cleared] || 0) * level;
     level = Math.floor(lines / 10) + 1;
     dropInterval = Math.max(100, 1000 - (level - 1) * 90);
+    combo++;
+    if (combo > bestCombo) bestCombo = combo;
     updateHUD();
+  } else {
+    combo = 0;
   }
 }
 
@@ -221,8 +234,26 @@ function drawNext() {
 function endGame() {
   gameOver = true;
   cancelAnimationFrame(animId);
+  if (lines > maxLines) {
+    maxLines = lines;
+    try { localStorage.setItem(MAX_LINES_KEY, String(maxLines)); } catch (e) {}
+  }
   overlayTitle.textContent = 'GAME OVER';
   overlayScore.textContent = `Puntuación: ${score.toLocaleString()}`;
+  const nameSection = document.getElementById('name-input-section');
+  const topPrompt = document.getElementById('top-score-prompt');
+  if (isTopScore(score)) {
+    nameSection.classList.remove('hidden');
+    topPrompt.classList.remove('hidden');
+    const input = document.getElementById('player-name');
+    if (input) input.value = '';
+  } else {
+    nameSection.classList.add('hidden');
+    topPrompt.classList.add('hidden');
+  }
+  document.getElementById('best-combo').textContent = bestCombo;
+  document.getElementById('max-lines-display').textContent = maxLines;
+  renderLeaderboard(document.querySelector('#gameover-leaderboard tbody'), score);
   overlay.classList.remove('hidden');
 }
 
@@ -256,27 +287,126 @@ function loop(ts) {
   animId = requestAnimationFrame(loop);
 }
 
-function init() {
+// ---- Leaderboard + persistence (Unit 2) ----
+
+function loadLeaderboard() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch (e) { return []; }
+}
+
+function saveLeaderboard(lb) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(lb));
+  } catch (e) {}
+}
+
+function isTopScore(s) {
+  const lb = loadLeaderboard();
+  if (lb.length < LEADERBOARD_SIZE) return s > 0;
+  return s > lb[lb.length - 1].score;
+}
+
+function addToLeaderboard(entry) {
+  const lb = loadLeaderboard();
+  lb.push(entry);
+  lb.sort((a, b) => b.score - a.score);
+  lb.length = Math.min(lb.length, LEADERBOARD_SIZE);
+  saveLeaderboard(lb);
+  return lb;
+}
+
+function resetLeaderboard() {
+  saveLeaderboard([]);
+}
+
+function renderLeaderboard(tbody, highlightScore, highlightName) {
+  if (!tbody) return;
+  tbody.innerHTML = '';
+  const lb = loadLeaderboard();
+  if (lb.length === 0) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = '<td colspan="4" style="opacity:0.5;">Sin records todavía</td>';
+    tbody.appendChild(tr);
+    return;
+  }
+  lb.forEach((entry, i) => {
+    const tr = document.createElement('tr');
+    tr.className = 'leaderboard-entry';
+    // Prefer name-based highlight when provided (disambiguates ties)
+    if (highlightName != null && entry.name === highlightName && entry.score === highlightScore) {
+      tr.classList.add('highlight');
+    } else if (highlightName == null && highlightScore != null && entry.score === highlightScore) {
+      tr.classList.add('highlight');
+    }
+    tr.innerHTML = `<td>${i + 1}</td><td>${escapeHtml(entry.name)}</td><td>${entry.score.toLocaleString()}</td><td>${entry.lines}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function showStartScreen() {
+  // Hide all modals first
+  document.querySelectorAll('.modal, .overlay').forEach(el => el.classList.add('hidden'));
+  const ss = document.getElementById('start-screen');
+  if (ss) ss.classList.remove('hidden');
+  renderLeaderboard(document.querySelector('#start-leaderboard tbody'));
+}
+
+function hideStartScreen() {
+  const ss = document.getElementById('start-screen');
+  if (ss) ss.classList.add('hidden');
+}
+
+function startGame(startLevel = 1) {
   board = createBoard();
   score = 0;
   lines = 0;
-  level = 1;
+  level = startLevel;
   paused = false;
   gameOver = false;
-  dropInterval = 1000;
+  combo = 0;
+  dropInterval = Math.max(100, 1000 - (level - 1) * 90);
   dropAccum = 0;
   lastTime = performance.now();
   next = randomPiece();
   spawn();
   updateHUD();
+  hideStartScreen();
   overlay.classList.add('hidden');
+  inStartScreen = false;
   cancelAnimationFrame(animId);
   animId = requestAnimationFrame(loop);
+}
+
+function init(startLevel = 1) {
+  // Load persisted max-lines
+  try {
+    const stored = parseInt(localStorage.getItem(MAX_LINES_KEY) || '0', 10);
+    maxLines = Number.isFinite(stored) ? stored : 0;
+  } catch (e) { maxLines = 0; }
+
+  // Unit 3 may provide a skin API; call it defensively if present
+  if (typeof applySkin === 'function') {
+    const skin = typeof loadSkinPreference === 'function' ? loadSkinPreference() : 'retro';
+    applySkin(skin);
+  }
+
+  // Show start screen instead of starting a game immediately
+  inStartScreen = true;
+  paused = false;
+  gameOver = false;
+  showStartScreen();
 }
 
 document.addEventListener('keydown', e => {
   if (e.code === 'KeyP') { togglePause(); return; }
   if (paused || gameOver) return;
+  if (!current) return;
   switch (e.code) {
     case 'ArrowLeft':
       if (!collide(current.shape, current.x - 1, current.y)) current.x--;
@@ -299,6 +429,37 @@ document.addEventListener('keydown', e => {
   updateHUD();
 });
 
-restartBtn.addEventListener('click', init);
+restartBtn.addEventListener('click', () => startGame());
+
+document.getElementById('play-btn').addEventListener('click', () => {
+  startGame();
+});
+
+document.getElementById('reset-records-btn').addEventListener('click', () => {
+  if (confirm('¿Borrar todos los records?')) {
+    resetLeaderboard();
+    renderLeaderboard(document.querySelector('#start-leaderboard tbody'));
+  }
+});
+
+document.getElementById('save-score-btn').addEventListener('click', () => {
+  const input = document.getElementById('player-name');
+  const name = ((input && input.value) || 'Anónimo').trim().slice(0, 12) || 'Anónimo';
+  addToLeaderboard({ name, score, lines });
+  document.getElementById('name-input-section').classList.add('hidden');
+  // Highlight the entry we just inserted by name + score (disambiguates ties)
+  renderLeaderboard(document.querySelector('#gameover-leaderboard tbody'), score, name);
+});
+
+// Enter in the name input also saves
+const playerNameInput = document.getElementById('player-name');
+if (playerNameInput) {
+  playerNameInput.addEventListener('keydown', e => {
+    if (e.code === 'Enter') {
+      e.preventDefault();
+      document.getElementById('save-score-btn').click();
+    }
+  });
+}
 
 init();

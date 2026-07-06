@@ -33,20 +33,48 @@
         <div class="panel-section controls">
           <span class="label">CONTROLS</span>
           <ul>
-            <li><kbd>←</kbd><kbd>→</kbd> mover</li>
-            <li><kbd>↑</kbd> rotar</li>
-            <li><kbd>↓</kbd> bajar</li>
-            <li><kbd>Space</kbd> caída</li>
+            <li><kbd>&larr;</kbd><kbd>&rarr;</kbd> mover</li>
+            <li><kbd>&uarr;</kbd> rotar</li>
+            <li><kbd>&darr;</kbd> bajar</li>
+            <li><kbd>Space</kbd> ca&iacute;da</li>
             <li><kbd>P</kbd> pausa</li>
           </ul>
         </div>
       </aside>
     </div>
 
+    <div id="start-screen" class="modal hidden">
+      <div class="modal-box">
+        <h2>TETRIS</h2>
+        <button id="play-btn" class="btn">Jugar</button>
+        <div class="leaderboard">
+          <h3>Mejores puntuaciones</h3>
+          <table id="start-leaderboard" class="leaderboard-table">
+            <thead><tr><th>#</th><th>Nombre</th><th>Puntos</th><th>L&iacute;neas</th></tr></thead>
+            <tbody></tbody>
+          </table>
+          <button id="reset-records-btn" class="btn btn-danger">Resetear records</button>
+        </div>
+      </div>
+    </div>
+
     <div id="overlay" class="overlay hidden">
       <div class="overlay-box">
         <p id="overlay-title">GAME OVER</p>
         <p id="overlay-score"></p>
+        <div id="name-input-section" class="hidden">
+          <p id="top-score-prompt" class="hidden">&iexcl;Has entrado al top 5!</p>
+          <input id="player-name" type="text" maxlength="12" placeholder="Tu nombre" />
+          <button id="save-score-btn" class="btn btn-secondary">Guardar</button>
+        </div>
+        <div class="stats-row">
+          <span class="stat-label">Mejor combo:</span> <span id="best-combo">0</span>
+          <span class="stat-label">M&aacute;x. l&iacute;neas:</span> <span id="max-lines-display">0</span>
+        </div>
+        <table id="gameover-leaderboard" class="leaderboard-table">
+          <thead><tr><th>#</th><th>Nombre</th><th>Puntos</th><th>L&iacute;neas</th></tr></thead>
+          <tbody></tbody>
+        </table>
         <button id="restart-btn">Reiniciar</button>
       </div>
     </div>
