@@ -28,7 +28,7 @@ body {
 #board {
   display: block;
   border: 1px solid #2a2a3a;
-  background: #1a1a25;
+  background: var(--board-bg, #1a1a25);
   border-radius: 4px;
   box-shadow: 0 0 40px rgba(0, 0, 0, 0.6);
 }
@@ -66,7 +66,7 @@ body {
 #next-canvas {
   display: block;
   border: 1px solid #2a2a3a;
-  background: #1a1a25;
+  background: var(--board-bg, #1a1a25);
   border-radius: 4px;
 }
 
@@ -149,4 +149,24 @@ kbd {
 
 #restart-btn:hover {
   background: #9bbdff;
+}
+
+/* Skins — CSS custom properties per body class */
+body.skin-retro  { --board-bg: #1a1a25; --grid-color: #22222e; --glow-color: transparent; }
+body.skin-neon   { --board-bg: #000000; --grid-color: #1a0033; --glow-color: #ff00ff; }
+body.skin-pastel { --board-bg: #f5e6ff; --grid-color: #d4c5e8; --glow-color: transparent; }
+body.skin-pixel  { --board-bg: #2b1d0e; --grid-color: #5c4033; --glow-color: transparent; }
+
+#board.skin-neon, #next-canvas.skin-neon {
+  box-shadow: 0 0 30px var(--glow-color), 0 0 60px var(--glow-color);
+}
+
+#skin-select {
+  background: #22223a;
+  color: #e0e0e0;
+  border: 1px solid #3a3a5a;
+  border-radius: 3px;
+  padding: 4px 6px;
+  font-size: 12px;
+  font-family: inherit;
 }
