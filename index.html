@@ -8,6 +8,18 @@
 </head>
 <body>
   <div class="wrapper">
+    <h1 class="game-title">
+      TETRIS
+      <button id="theme-toggle" class="theme-toggle" aria-label="Cambiar entre modo oscuro y claro" title="Cambiar tema">
+        <span class="knob"></span>
+      </button>
+      <select id="skin-select" class="skin-select" aria-label="Elegir apariencia del tablero" title="Elegir apariencia">
+        <option value="retro">Retro</option>
+        <option value="neon">Neón</option>
+        <option value="pastel">Pastel</option>
+        <option value="pixel">Pixel Art</option>
+      </select>
+    </h1>
     <div class="game-container">
       <canvas id="board" width="300" height="600"></canvas>
 
