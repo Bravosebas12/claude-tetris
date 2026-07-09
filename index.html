@@ -8,6 +8,12 @@
 </head>
 <body>
   <div class="wrapper">
+    <h1 class="game-title">
+      TETRIS
+      <button id="theme-toggle" class="theme-toggle" aria-label="Cambiar entre modo oscuro y claro" title="Cambiar tema">
+        <span class="knob"></span>
+      </button>
+    </h1>
     <div class="game-container">
       <canvas id="board" width="300" height="600"></canvas>
 
@@ -40,6 +46,14 @@
             <li><kbd>P</kbd> pausa</li>
           </ul>
         </div>
+
+        <div class="panel-section records">
+          <span class="label">RECORDS</span>
+          <ol id="leaderboard-list" class="leaderboard-list"></ol>
+          <span class="stat-line">Mejor combo: <span class="value-small" id="best-combo">0</span></span>
+          <span class="stat-line">Máx. líneas: <span class="value-small" id="max-lines">0</span></span>
+          <button id="reset-scores-btn">Reset récords</button>
+        </div>
       </aside>
     </div>
 
@@ -47,6 +61,12 @@
       <div class="overlay-box">
         <p id="overlay-title">GAME OVER</p>
         <p id="overlay-score"></p>
+        <div id="new-highscore" class="new-highscore hidden">
+          <p class="new-highscore-msg">¡Nuevo récord!</p>
+          <input id="player-name-input" maxlength="12" placeholder="AAA" autocomplete="off" />
+          <button id="save-score-btn">Guardar</button>
+        </div>
+        <ol id="overlay-leaderboard-list" class="leaderboard-list"></ol>
         <button id="restart-btn">Reiniciar</button>
       </div>
     </div>
