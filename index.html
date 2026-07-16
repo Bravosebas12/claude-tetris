@@ -9,7 +9,15 @@
 <body>
   <div class="wrapper">
     <h1 class="game-title">TETRIS</h1>
-    <div class="game-container">
+
+    <div id="start-screen">
+      <h2 class="start-heading">MEJORES PUNTAJES</h2>
+      <ol id="start-highscore-list"></ol>
+      <p id="start-stats-line">Mejor combo: <span id="start-best-combo-value"></span> · Líneas máx: <span id="start-max-lines-value"></span></p>
+      <button id="start-play-btn" class="btn-primary">Jugar</button>
+    </div>
+
+    <div class="game-container hidden">
       <canvas id="board" width="300" height="600"></canvas>
 
       <aside class="panel">
@@ -48,7 +56,20 @@
       <div class="overlay-box">
         <p id="overlay-title">GAME OVER</p>
         <p id="overlay-score"></p>
-        <button id="restart-btn">Reiniciar</button>
+
+        <div id="new-highscore-block" class="hidden">
+          <p class="new-highscore-msg">¡Nuevo récord!</p>
+          <input id="name-input" maxlength="3" placeholder="AAA" />
+          <button id="save-score-btn" class="btn-primary">Guardar</button>
+        </div>
+
+        <ol id="gameover-highscore-list"></ol>
+        <p id="stats-line">Mejor combo: <span id="best-combo-value"></span> · Líneas máx: <span id="max-lines-value"></span></p>
+
+        <div class="overlay-actions">
+          <button id="restart-btn" class="btn-primary">Reiniciar</button>
+          <button id="reset-highscores-btn" class="btn-primary">Borrar récords</button>
+        </div>
       </div>
     </div>
   </div>
