@@ -30,6 +30,108 @@ const PIECES = [
 
 const LINE_SCORES = [0, 100, 300, 500, 800];
 
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+const SKINS = {
+  retro: {
+    colors: COLORS,
+    background: '#1a1a25',
+    gridColor: '#22222e',
+    drawBlock(context, x, y, colorIndex, size, alpha) {
+      if (!colorIndex) return;
+      const color = this.colors[colorIndex];
+      context.globalAlpha = alpha ?? 1;
+      context.fillStyle = color;
+      context.fillRect(x * size + 1, y * size + 1, size - 2, size - 2);
+      // highlight
+      context.fillStyle = 'rgba(255,255,255,0.12)';
+      context.fillRect(x * size + 1, y * size + 1, size - 2, 4);
+      context.globalAlpha = 1;
+    },
+  },
+  neon: {
+    colors: [
+      null,
+      '#00e5ff',
+      '#fff700',
+      '#e040fb',
+      '#00ff87',
+      '#ff1744',
+      '#3d5afe',
+      '#ff9100',
+    ],
+    background: '#000000',
+    gridColor: '#0a2a2a',
+    drawBlock(context, x, y, colorIndex, size, alpha) {
+      if (!colorIndex) return;
+      const color = this.colors[colorIndex];
+      context.save();
+      context.globalAlpha = alpha ?? 1;
+      context.shadowColor = color;
+      context.shadowBlur = 12;
+      context.fillStyle = color;
+      context.fillRect(x * size + 2, y * size + 2, size - 4, size - 4);
+      context.restore();
+    },
+  },
+  pastel: {
+    colors: [
+      null,
+      '#a8dadc',
+      '#fff3b0',
+      '#d8bbff',
+      '#b7e4c7',
+      '#ffb3b3',
+      '#b3c6ff',
+      '#ffd8a8',
+    ],
+    background: '#f5f0f6',
+    gridColor: '#e0d9e6',
+    drawBlock(context, x, y, colorIndex, size, alpha) {
+      if (!colorIndex) return;
+      const color = this.colors[colorIndex];
+      context.globalAlpha = alpha ?? 1;
+      context.fillStyle = color;
+      roundRect(context, x * size + 2, y * size + 2, size - 4, size - 4, 6);
+      context.fill();
+      context.globalAlpha = 1;
+    },
+  },
+  pixel: {
+    colors: COLORS,
+    background: '#181818',
+    gridColor: '#303030',
+    drawBlock(context, x, y, colorIndex, size, alpha) {
+      if (!colorIndex) return;
+      const color = this.colors[colorIndex];
+      const a = alpha ?? 1;
+      context.globalAlpha = a;
+      context.fillStyle = color;
+      context.fillRect(x * size + 1, y * size + 1, size - 2, size - 2);
+      // pixel-art dot overlay
+      const dot = Math.max(2, Math.floor(size / 6));
+      context.fillStyle = `rgba(0,0,0,${0.18 * a})`;
+      for (let py = 0; py < size - 2; py += dot * 2) {
+        for (let px = 0; px < size - 2; px += dot * 2) {
+          context.fillRect(x * size + 1 + px, y * size + 1 + py, dot, dot);
+        }
+      }
+      context.globalAlpha = 1;
+    },
+  },
+};
+
+const savedSkin = localStorage.getItem('tetris-skin');
+let currentSkin = SKINS[savedSkin] ? savedSkin : 'retro';
+
 const canvas = document.getElementById('board');
 const ctx = canvas.getContext('2d');
 const nextCanvas = document.getElementById('next-canvas');
@@ -194,19 +296,11 @@ function updateHUD() {
 }
 
 function drawBlock(context, x, y, colorIndex, size, alpha) {
-  if (!colorIndex) return;
-  const color = COLORS[colorIndex];
-  context.globalAlpha = alpha ?? 1;
-  context.fillStyle = color;
-  context.fillRect(x * size + 1, y * size + 1, size - 2, size - 2);
-  // highlight
-  context.fillStyle = 'rgba(255,255,255,0.12)';
-  context.fillRect(x * size + 1, y * size + 1, size - 2, 4);
-  context.globalAlpha = 1;
+  SKINS[currentSkin].drawBlock(context, x, y, colorIndex, size, alpha);
 }
 
 function drawGrid() {
-  ctx.strokeStyle = '#22222e';
+  ctx.strokeStyle = SKINS[currentSkin].gridColor;
   ctx.lineWidth = 0.5;
   for (let c = 1; c < COLS; c++) {
     ctx.beginPath();
@@ -224,6 +318,8 @@ function drawGrid() {
 
 function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = SKINS[currentSkin].background;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
   drawGrid();
 
   // board
@@ -458,6 +554,17 @@ startPlayBtn.addEventListener('click', () => {
   gameContainer.classList.remove('hidden');
   init();
 });
+
+const skinSelect = document.getElementById('skin-select');
+if (skinSelect) {
+  skinSelect.value = currentSkin;
+  skinSelect.addEventListener('change', e => {
+    currentSkin = e.target.value;
+    localStorage.setItem('tetris-skin', currentSkin);
+    draw();
+    drawNext();
+  });
+}
 
 (function boot() {
   const data = loadHighScores();
