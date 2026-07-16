@@ -212,3 +212,127 @@ kbd {
   color: #e0e0e0;
   cursor: pointer;
 }
+
+.overlay-actions {
+  display: flex;
+  gap: 10px;
+}
+
+/* ---- High scores ---- */
+#new-highscore-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+#new-highscore-block.hidden {
+  display: none;
+}
+
+.new-highscore-msg {
+  color: #ffd54f;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+
+#name-input {
+  background: #1a1a25;
+  border: 1px solid #3a3a5a;
+  border-radius: 6px;
+  color: #e0e0e0;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 16px;
+  text-align: center;
+  text-transform: uppercase;
+  letter-spacing: 4px;
+  padding: 8px;
+  width: 90px;
+}
+
+#name-input:focus {
+  outline: none;
+  border-color: #7aa2f7;
+}
+
+#gameover-highscore-list,
+#start-highscore-list {
+  list-style: none;
+  width: 220px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.highscore-entry {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  color: #ccc;
+}
+
+.highscore-rank {
+  color: #555570;
+  width: 18px;
+}
+
+.highscore-name {
+  flex: 1;
+  text-align: left;
+  font-family: 'Courier New', Courier, monospace;
+  letter-spacing: 1px;
+}
+
+.highscore-score {
+  font-family: 'Courier New', Courier, monospace;
+  color: #7aa2f7;
+}
+
+.highscore-highlight {
+  background: rgba(122, 162, 247, 0.15);
+  border: 1px solid #7aa2f7;
+}
+
+.highscore-empty {
+  font-size: 12px;
+  color: #555570;
+  text-align: center;
+}
+
+#stats-line,
+#start-stats-line {
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 12px;
+  color: #888;
+}
+
+/* ---- Start screen ---- */
+#start-screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 24px;
+  border: 1px solid #2a2a3a;
+  background: #1a1a25;
+  border-radius: 4px;
+  box-shadow: 0 0 40px rgba(0, 0, 0, 0.6);
+}
+
+#start-screen.hidden {
+  display: none;
+}
+
+.start-heading {
+  font-size: 16px;
+  letter-spacing: 2px;
+  color: #7aa2f7;
+}
+
+.game-container.hidden {
+  display: none;
+}
