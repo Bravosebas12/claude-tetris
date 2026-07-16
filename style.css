@@ -122,7 +122,7 @@ kbd {
   display: none;
 }
 
-.overlay-box {
+.overlay-panel {
   text-align: center;
   display: flex;
   flex-direction: column;
@@ -130,11 +130,20 @@ kbd {
   align-items: center;
 }
 
-#overlay-title {
+.overlay-panel.hidden {
+  display: none;
+}
+
+#overlay-title,
+#pause-title {
   font-size: 28px;
   font-weight: 800;
   letter-spacing: 4px;
   color: #e57373;
+}
+
+#pause-title {
+  color: #7aa2f7;
 }
 
 #overlay-score {
@@ -143,7 +152,7 @@ kbd {
   color: #7aa2f7;
 }
 
-#restart-btn {
+.overlay-btn {
   margin-top: 8px;
   background: #7aa2f7;
   color: #0f0f17;
@@ -157,6 +166,49 @@ kbd {
   transition: background 0.15s;
 }
 
-#restart-btn:hover {
+.overlay-btn:hover {
   background: #9bbdff;
+}
+
+#pause-controls-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+#pause-controls-list.hidden {
+  display: none;
+}
+
+#pause-controls-list li {
+  font-size: 12px;
+  color: #888;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  justify-content: center;
+}
+
+.level-select-label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 10px;
+  letter-spacing: 2px;
+  color: #555570;
+  font-weight: 600;
+  margin-top: 8px;
+}
+
+#start-level-select {
+  background: #22223a;
+  border: 1px solid #3a3a5a;
+  border-radius: 4px;
+  padding: 6px 10px;
+  font-size: 14px;
+  font-family: inherit;
+  color: #e0e0e0;
+  cursor: pointer;
 }
