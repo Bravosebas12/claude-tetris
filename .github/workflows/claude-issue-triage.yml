@@ -1,0 +1,93 @@
+name: Claude Issue Triage
+
+on:
+  issues:
+    types: [opened, edited]
+
+jobs:
+  triage:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      id-token: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      # Idempotent — keeps the fixed label taxonomy in sync with this file.
+      - name: Ensure taxonomy labels exist
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh label create "bug" --color "d73a4a" --description "Something isn't working as expected" --force
+          gh label create "enhancement" --color "a2eeef" --description "New feature or improvement request" --force
+          gh label create "question" --color "d876e3" --description "Further information or clarification is needed" --force
+          gh label create "area:rendering" --color "1d76db" --description "Canvas drawing / draw()" --force
+          gh label create "area:collision" --color "e99695" --description "collide() bounds/overlap logic" --force
+          gh label create "area:rotation" --color "fbca04" --description "rotateCW / tryRotate / wall kicks" --force
+          gh label create "area:game-loop" --color "0e8a16" --description "loop / dropAccum / dropInterval timing" --force
+          gh label create "area:line-clearing" --color "5319e7" --description "clearLines() row-clear logic" --force
+          gh label create "area:scoring" --color "c5def5" --description "LINE_SCORES / score calculation" --force
+          gh label create "area:controls" --color "bfd4f2" --description "keydown input handling" --force
+          gh label create "area:state" --color "f9d0c4" --description "spawn/init/endGame/game state" --force
+
+      - name: Run Claude Code triage
+        id: claude
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+
+          prompt: |
+            REPO: ${{ github.repository }}
+            ISSUE NUMBER: ${{ github.event.issue.number }}
+            EVENT ACTION: ${{ github.event.action }}
+            TITLE: ${{ github.event.issue.title }}
+            BODY:
+            ${{ github.event.issue.body }}
+
+            You are triaging a GitHub issue for a small vanilla-JS Tetris game (single `game.js`,
+            `index.html`, `style.css`, no build step, no tests). Read CLAUDE.md and the relevant
+            parts of game.js to ground your analysis in real code. Do NOT modify, create, or delete
+            any files, and do NOT create branches, commits, or PRs. This is diagnosis-only.
+
+            Step 1 — Classify and label:
+            Pick exactly one "type" label from: bug, enhancement, question.
+            Pick one or more "area" labels from: area:rendering, area:collision, area:rotation,
+            area:game-loop, area:line-clearing, area:scoring, area:controls, area:state.
+            Only use labels from this fixed list — never invent new label names.
+            Apply with:
+              gh issue edit ${{ github.event.issue.number }} --add-label "<type>,<area1>,<area2>"
+            If this is a re-analysis of an edited issue and a previously-applied label from this
+            taxonomy no longer fits, remove it with --remove-label.
+
+            Step 2 — Post a diagnostic comment (analysis only, NOT a fix):
+            Post via:
+              gh issue comment ${{ github.event.issue.number }} --body "..."
+            using exactly this structure:
+
+            ## Diagnostic Analysis (automated)
+
+            **Summary**
+            <1-3 sentence restatement of the issue>
+
+            **Likely cause**
+            <root-cause hypothesis: what in the code is probably responsible, and why>
+
+            **Affected code areas**
+            <bullet list of specific files/functions in game.js (or index.html/style.css) likely involved>
+
+            **Suggested next steps for implementation**
+            <bullet list of things a human implementer should check/try — NOT actual code changes>
+
+            Rules:
+            - Never write the literal string "@claude" anywhere in the comment (it would re-trigger
+              the repo's separate mention-based Claude workflow).
+            - Do not implement a fix, do not edit any files, do not create commits/branches/PRs.
+            - If you can't determine a root cause confidently, say so explicitly and list what's missing.
+
+          claude_args: |
+            --allowedTools "Read,Grep,Glob,Bash(gh issue view:*),Bash(gh issue edit:*),Bash(gh issue comment:*),Bash(gh label list:*)"
