@@ -8,6 +8,7 @@
 </head>
 <body>
   <div class="wrapper">
+    <h1 class="game-title">TETRIS</h1>
     <div class="game-container">
       <canvas id="board" width="300" height="600"></canvas>
 
@@ -26,8 +27,26 @@
         </div>
 
         <div class="panel-section">
+          <span class="label">COMBO</span>
+          <span class="value" id="combo">0</span>
+        </div>
+
+        <div class="panel-section">
           <span class="label">NEXT</span>
           <canvas id="next-canvas" width="120" height="120"></canvas>
+        </div>
+
+        <div class="panel-section">
+          <span class="label">TEMA</span>
+          <label class="theme-switch">
+            <input type="checkbox" id="theme-toggle" />
+            <span class="theme-slider"></span>
+          </label>
+        </div>
+
+        <div class="panel-section">
+          <span class="label">SKIN</span>
+          <select id="skin-select"></select>
         </div>
 
         <div class="panel-section controls">
@@ -37,7 +56,7 @@
             <li><kbd>↑</kbd> rotar</li>
             <li><kbd>↓</kbd> bajar</li>
             <li><kbd>Space</kbd> caída</li>
-            <li><kbd>P</kbd> pausa</li>
+            <li><kbd>P</kbd><kbd>Esc</kbd> pausa</li>
           </ul>
         </div>
       </aside>
@@ -47,7 +66,56 @@
       <div class="overlay-box">
         <p id="overlay-title">GAME OVER</p>
         <p id="overlay-score"></p>
+
+        <!-- Formulario de nombre: sólo visible si la puntuación entra en el top 5 -->
+        <div id="record-form" class="record-form hidden">
+          <label class="record-form-label" for="player-name">¡Nuevo record! Tu nombre:</label>
+          <div class="record-form-row">
+            <input type="text" id="player-name" maxlength="12" placeholder="ANÓNIMO" autocomplete="off" />
+            <button id="save-record-btn">Guardar</button>
+          </div>
+        </div>
+
+        <div id="gameover-records" class="records-panel"></div>
         <button id="restart-btn">Reiniciar</button>
+        <button id="reset-records-gameover" class="reset-records-btn">Resetear records</button>
+      </div>
+    </div>
+
+    <!-- Pantalla de inicio: visible al cargar, el juego no arranca hasta pulsar JUGAR -->
+    <div id="start-screen" class="overlay">
+      <div class="overlay-box">
+        <p id="start-title">TETRIS</p>
+        <div id="start-records" class="records-panel"></div>
+        <button id="play-btn">JUGAR</button>
+        <button id="reset-records-start" class="reset-records-btn">Resetear records</button>
+      </div>
+    </div>
+
+    <!-- Menú de pausa: overlay independiente del de GAME OVER -->
+    <div id="pause-menu" class="overlay hidden">
+      <div class="pause-box">
+        <p class="pause-title">PAUSA</p>
+
+        <button id="resume-btn" class="pause-btn">Reanudar</button>
+        <button id="pause-restart-btn" class="pause-btn">Reiniciar</button>
+        <button id="toggle-controls-btn" class="pause-btn pause-btn-secondary">Ver controles</button>
+
+        <div id="pause-controls" class="pause-controls controls hidden">
+          <ul>
+            <li><kbd>←</kbd><kbd>→</kbd> mover</li>
+            <li><kbd>↑</kbd> rotar</li>
+            <li><kbd>↓</kbd> bajar</li>
+            <li><kbd>Space</kbd> caída</li>
+            <li><kbd>P</kbd> pausa</li>
+            <li><kbd>Esc</kbd> pausa</li>
+          </ul>
+        </div>
+
+        <div class="pause-level">
+          <label class="label" for="start-level-select">NIVEL INICIAL</label>
+          <select id="start-level-select"></select>
+        </div>
       </div>
     </div>
   </div>
