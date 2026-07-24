@@ -1,17 +1,37 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Tetris</title>
   <link rel="stylesheet" href="style.css" />
 </head>
+
 <body>
   <div class="wrapper">
+    <h1 class="game-title">TETRIS</h1>
     <div class="game-container">
       <canvas id="board" width="300" height="600"></canvas>
 
       <aside class="panel">
+        <div class="panel-section">
+          <button id="theme-toggle" class="theme-toggle" type="button" aria-pressed="false">
+            <span class="theme-icon" id="theme-icon">🌙</span>
+            <span id="theme-label">DARK</span>
+          </button>
+        </div>
+
+        <div class="panel-section">
+          <span class="label">SKIN</span>
+          <select id="skin-select" class="skin-select">
+            <option value="retro">Retro</option>
+            <option value="neon">Neon</option>
+            <option value="pastel">Pastel</option>
+            <option value="pixel">Pixel Art</option>
+          </select>
+        </div>
+
         <div class="panel-section">
           <span class="label">SCORE</span>
           <span class="value" id="score">0</span>
@@ -30,28 +50,83 @@
           <canvas id="next-canvas" width="120" height="120"></canvas>
         </div>
 
-        <div class="panel-section controls">
-          <span class="label">CONTROLS</span>
-          <ul>
-            <li><kbd>←</kbd><kbd>→</kbd> mover</li>
-            <li><kbd>↑</kbd> rotar</li>
-            <li><kbd>↓</kbd> bajar</li>
-            <li><kbd>Space</kbd> caída</li>
-            <li><kbd>P</kbd> pausa</li>
-          </ul>
+        <div class="panel-section">
+          <span class="label">HOLD</span>
+          <canvas id="hold-canvas" width="120" height="120"></canvas>
         </div>
+
       </aside>
+      <div class="panel-section controls">
+        <span class="label">CONTROLS</span>
+        <ul>
+          <li><kbd>←</kbd><kbd>→</kbd> mover</li>
+          <li><kbd>↑</kbd> rotar</li>
+          <li><kbd>↓</kbd> bajar</li>
+          <li><kbd>Space</kbd> caída</li>
+          <li><kbd>C</kbd> guardar</li>
+          <li><kbd>P</kbd> pausa</li>
+        </ul>
+      </div>
     </div>
 
     <div id="overlay" class="overlay hidden">
       <div class="overlay-box">
         <p id="overlay-title">GAME OVER</p>
         <p id="overlay-score"></p>
+        <div id="overlay-newrecord" class="overlay-newrecord hidden">
+          <p class="new-record-label">¡Nuevo récord! Ingresa tu nombre:</p>
+          <input id="player-name-input" type="text" maxlength="12" placeholder="Jugador" autocomplete="off" />
+          <button id="save-score-btn">Guardar</button>
+        </div>
+        <div id="overlay-records" class="records hidden">
+          <div class="records-header">
+            <span class="label">RECORDS</span>
+            <button id="reset-records-btn" class="reset-records-btn" type="button" title="Reiniciar récords">↺</button>
+          </div>
+          <ol id="records-list" class="records-list"></ol>
+          <div class="records-extra">
+            <span>Mejor combo: <strong id="best-combo">0</strong></span>
+            <span>Más líneas: <strong id="best-lines">0</strong></span>
+          </div>
+        </div>
         <button id="restart-btn">Reiniciar</button>
+      </div>
+    </div>
+
+    <div id="pause-overlay" class="overlay hidden">
+      <div class="overlay-box pause-box">
+        <p class="pause-title">PAUSA</p>
+
+        <div id="pause-main" class="pause-view">
+          <button id="resume-btn" class="menu-btn">Reanudar</button>
+          <button id="pause-restart-btn" class="menu-btn">Reiniciar</button>
+          <button id="show-controls-btn" class="menu-btn">Ver controles</button>
+          <div class="level-select-row">
+            <label id="start-level-label" for="start-level-value">Nivel inicial</label>
+            <div class="level-counter">
+              <button id="start-level-dec" class="counter-btn" type="button" aria-label="Disminuir nivel inicial">−</button>
+              <span id="start-level-value" class="counter-value" aria-live="polite">1</span>
+              <button id="start-level-inc" class="counter-btn" type="button" aria-label="Aumentar nivel inicial">+</button>
+            </div>
+          </div>
+        </div>
+
+        <div id="pause-controls" class="pause-view hidden">
+          <ul class="pause-controls-list">
+            <li><kbd>←</kbd><kbd>→</kbd> mover</li>
+            <li><kbd>↑</kbd> rotar</li>
+            <li><kbd>↓</kbd> bajar</li>
+            <li><kbd>Space</kbd> caída</li>
+            <li><kbd>C</kbd> guardar</li>
+            <li><kbd>P</kbd> / <kbd>Esc</kbd> pausa</li>
+          </ul>
+          <button id="back-from-controls-btn" class="menu-btn">Volver</button>
+        </div>
       </div>
     </div>
   </div>
 
   <script src="game.js"></script>
 </body>
+
 </html>

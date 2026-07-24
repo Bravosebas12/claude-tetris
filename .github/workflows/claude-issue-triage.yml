@@ -1,0 +1,79 @@
+name: Claude Issue Triage
+
+on:
+  issues:
+    types: [opened, edited]
+
+jobs:
+  triage:
+    # Evita bucles: no reaccionar a issues creados/editados por bots (p.ej. este mismo workflow)
+    if: github.event.sender.type != 'Bot'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      id-token: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Run Claude Issue Triage
+        id: claude-triage
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          claude_args: '--allowed-tools "Read,Grep,Glob,Bash(gh issue view:*),Bash(gh issue edit:*),Bash(gh issue comment:*),Bash(gh label list:*),Bash(gh label create:*)"'
+          prompt: |
+            Estás analizando el issue #${{ github.event.issue.number }} del repositorio
+            ${{ github.repository }} (evento: `${{ github.event.action }}`).
+
+            Este repositorio es un Tetris en JavaScript vanilla + HTML5 Canvas. Toda la lógica del
+            juego vive en `game.js`; la estructura DOM está en `index.html`; el estilo en `style.css`.
+            Consulta `CLAUDE.md` para más contexto de la arquitectura si lo necesitas.
+
+            Tu tarea, en este orden:
+
+            1. Ejecuta `gh issue view ${{ github.event.issue.number }} --json title,body,labels`
+               para leer el título y el cuerpo del issue.
+
+            2. Ejecuta `gh label list` para ver los labels que ya existen en el repo.
+
+            3. Decide qué labels aplican a este issue, usando esta taxonomía:
+               - Tipo (elige uno): `type/bug`, `type/enhancement`, `type/docs`, `type/question`, `type/chore`
+               - Área (elige los que apliquen, puede ser más de uno): `area/gameplay`, `area/rendering`,
+                 `area/controls`, `area/scoring`, `area/ui`, `area/build`
+               - Prioridad (opcional, solo si es evidente por el contenido): `priority/low`,
+                 `priority/medium`, `priority/high`
+
+               Para cada label elegido que NO aparezca en `gh label list`, créalo primero con
+               `gh label create <nombre> --color <hex> --description "<descripción breve>"`.
+               No uses `--force`; no borres ni modifiques labels existentes.
+
+               Aplica los labels elegidos con:
+               `gh issue edit ${{ github.event.issue.number }} --add-label "label1,label2,..."`
+
+            4. Lee el código relevante del repositorio (`game.js`, `index.html`, `style.css`,
+               `README.md`, `CLAUDE.md`) para entender el problema o petición descrito en el issue,
+               y así poder dar un diagnóstico fundamentado (menciona funciones/constantes concretas
+               cuando sea posible, p.ej. `clearLines`, `tryRotate`, `dropInterval`, `PIECES`).
+
+            5. Publica UN comentario con `gh issue comment ${{ github.event.issue.number }} --body "..."`
+               (en español) con esta estructura exacta:
+
+               ## 🔎 Diagnóstico automático
+               **Resumen:** <qué pide o reporta el issue en 1-2 líneas>
+               **Causa probable / área afectada:** <hipótesis técnica concreta>
+               **Archivos y funciones probablemente implicados:** <p.ej. `game.js` (función `clearLines`)>
+               **Enfoque sugerido para la solución:** <pasos concretos y accionables>
+               **Labels aplicados:** <lista de labels que aplicaste>
+
+               > Diagnóstico generado automáticamente por Claude. Puede requerir validación humana.
+
+               Si el evento es `edited` (issue reevaluado), acláralo en el comentario, p.ej. iniciando
+               con "**Reevaluación tras edición del issue:**" antes del resumen.
+
+            No modifiques el cuerpo ni el título del issue. No cierres el issue. No uses ninguna
+            herramienta de escritura sobre archivos del repositorio (no es necesario para esta tarea).
