@@ -209,6 +209,36 @@ kbd {
   transform: translateX(16px);
 }
 
+/* ---- Selector de skin ---- */
+.skin-options {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.skin-option {
+  background: var(--kbd-bg);
+  border: 1px solid var(--kbd-border);
+  border-radius: 4px;
+  color: var(--kbd-text);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  padding: 6px 4px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.skin-option:hover {
+  border-color: var(--accent);
+}
+
+.skin-option.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--btn-text);
+}
+
 /* ---- Overlay ---- */
 .overlay {
   position: absolute;
