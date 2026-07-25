@@ -1,0 +1,62 @@
+name: Claude Issue Triage
+
+on:
+  issues:
+    types: [opened, edited, reopened]
+
+jobs:
+  triage:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      id-token: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Run Claude Issue Triage
+        id: claude-triage
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: |
+            Triage GitHub issue #${{ github.event.issue.number }} in ${{ github.repository }}.
+
+            This repo is a vanilla JS Tetris game (no build tools/dependencies): index.html,
+            style.css, and game.js (~300 lines, all game logic as top-level functions over
+            module-level state — board, current, next, score, lines, level, paused,
+            gameOver, dropInterval, etc.). See CLAUDE.md for full architecture details
+            (board model, pieces, collision, wall kicks, game loop, locking, line clearing,
+            scoring, ghost piece, rendering, input handling).
+
+            Steps:
+            1. Read the issue with `gh issue view ${{ github.event.issue.number }}`.
+            2. Run `gh label list` to see existing labels. This project uses a specific label
+               set: bug, feature, enhancement, question, ui, gameplay.
+               - `ui` = index.html/style.css/rendering/visual issues.
+               - `gameplay` = rules/mechanics in game.js (collision, scoring, rotation, wall
+                 kicks, levels, line clearing, etc.).
+               - `bug` / `feature` / `enhancement` / `question` = usual meaning.
+               If any of these six labels don't exist yet, create them with
+               `gh label create <name> --color <hex> --description "..."` before applying them.
+               Only use a label outside this set if none of the six clearly fit.
+            3. Apply the appropriate label(s) with
+               `gh issue edit ${{ github.event.issue.number }} --add-label "..."`.
+            4. Post one comment on the issue (`gh issue comment ${{ github.event.issue.number }} --body "..."`)
+               containing a general diagnostic to be used as input for implementing a fix/feature later:
+               - Root cause hypothesis (or, for feature requests, what's missing today)
+               - Relevant files/functions in game.js (or index.html/style.css) likely involved
+               - Suggested approach / implementation notes
+               - Anything ambiguous that needs clarification from the reporter
+            5. If the issue was edited or reopened rather than newly opened, first check
+               existing comments/labels on the issue; only add a new diagnostic comment or
+               change labels if the current content has materially changed since your last
+               pass. Don't post duplicate diagnostics.
+          claude_args: |
+            --allowed-tools "Bash(gh issue view:*),Bash(gh issue edit:*),Bash(gh issue comment:*),Bash(gh label list:*),Bash(gh label create:*)"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
