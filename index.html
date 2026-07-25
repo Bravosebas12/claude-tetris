@@ -8,6 +8,7 @@
 </head>
 <body>
   <div class="wrapper">
+    <h1 class="game-title">TETRIS</h1>
     <div class="game-container">
       <canvas id="board" width="300" height="600"></canvas>
 
@@ -28,6 +29,27 @@
         <div class="panel-section">
           <span class="label">NEXT</span>
           <canvas id="next-canvas" width="120" height="120"></canvas>
+        </div>
+
+        <div class="panel-section theme-toggle">
+          <label class="toggle-wrap" for="theme-switch">
+            <span class="theme-icon">&#9790;</span>
+            <div class="toggle-track">
+              <input type="checkbox" id="theme-switch">
+              <span class="toggle-slider"></span>
+            </div>
+            <span class="theme-icon">&#9728;</span>
+          </label>
+        </div>
+
+        <div class="panel-section skin-section">
+          <span class="label">SKIN</span>
+          <div class="skin-options">
+            <button class="skin-option" data-skin="retro">Retro</button>
+            <button class="skin-option" data-skin="neon">Neon</button>
+            <button class="skin-option" data-skin="pastel">Pastel</button>
+            <button class="skin-option" data-skin="pixel">Pixel</button>
+          </div>
         </div>
 
         <div class="panel-section controls">
