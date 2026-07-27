@@ -1,0 +1,88 @@
+name: Claude Issue Triage
+
+on:
+  issues:
+    types: [opened, edited]
+
+jobs:
+  triage:
+    # Skip issues opened/edited by bots to avoid triggering on automated activity
+    if: github.event.issue.user.type != 'Bot'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      id-token: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Ensure label taxonomy exists
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          create_label() {
+            gh label create "$1" --color "$2" --description "$3" --force
+          }
+
+          # Tipo
+          create_label "feature" "0e8a16" "Solicitud de nueva funcionalidad"
+
+          # Área del juego afectada
+          create_label "area-gameplay" "1d76db" "Lógica de juego: piezas, colisiones, rotación, líneas"
+          create_label "area-rendering" "1d76db" "Dibujo en canvas: tablero, piezas, ghost piece, preview"
+          create_label "area-input" "1d76db" "Controles de teclado"
+          create_label "area-scoring" "1d76db" "Puntaje, niveles, velocidad de caída"
+          create_label "area-ui" "1d76db" "HTML/CSS: layout, overlays, panel de estado"
+
+          # Prioridad
+          create_label "priority-high" "b60205" "Bloquea el uso normal del juego"
+          create_label "priority-medium" "fbca04" "Afecta la experiencia pero tiene workaround"
+          create_label "priority-low" "c5def5" "Mejora menor o cosmética"
+
+      - name: Run Claude to triage the issue
+        id: claude-triage
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          additional_permissions: |
+            actions: read
+          claude_args: |
+            --allowed-tools "Bash(gh issue view:*),Bash(gh label list:*),Bash(gh issue edit:*)"
+          prompt: |
+            Analiza el issue #${{ github.event.issue.number }} de este repositorio
+            (Tetris en JavaScript vanilla, ver CLAUDE.md para la arquitectura) y
+            asígnale los labels apropiados. NO escribas ningún comentario en el
+            issue, NO modifiques código, NO cambies el título ni el cuerpo —
+            tu única acción permitida es aplicar labels con
+            `gh issue edit ${{ github.event.issue.number }} --add-label "..."`.
+
+            1. Lee el issue con `gh issue view ${{ github.event.issue.number }}`.
+            2. Elige EXACTAMENTE un label de tipo:
+               - `bug` si describe un comportamiento incorrecto o error.
+               - `feature` si pide una funcionalidad nueva que no existe.
+               - `enhancement` si pide mejorar algo que ya existe.
+               - `documentation` si es sobre README/CLAUDE.md/comentarios.
+               - `question` si es una pregunta sin acción de código clara.
+            3. Elige cero, uno o dos labels de área (solo si aplica claramente,
+               basándote en la arquitectura descrita en CLAUDE.md):
+               - `area-gameplay` (colisiones, rotación, spawn, clear de líneas)
+               - `area-rendering` (dibujo en los canvas, ghost piece, preview)
+               - `area-input` (teclado, pausa, hard drop)
+               - `area-scoring` (puntaje, nivel, velocidad)
+               - `area-ui` (HTML/CSS, overlays, layout)
+            4. Elige EXACTAMENTE un label de prioridad:
+               - `priority-high` si el juego se rompe o es injugable.
+               - `priority-medium` para lo demás con impacto real.
+               - `priority-low` para cosas cosméticas o menores.
+            5. Aplica todos los labels elegidos con una sola llamada a
+               `gh issue edit ${{ github.event.issue.number }} --add-label "a,b,c"`.
+            6. No quites labels existentes salvo que sean del mismo grupo
+               (tipo/prioridad) y contradigan tu elección — en ese caso usa
+               `--remove-label` para el que sobra antes de agregar el nuevo.
+
+            No hagas nada más allá de esto. No hay diagnóstico ni comentario
+            que publicar.

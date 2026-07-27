@@ -40,3 +40,9 @@ Everything lives in module-level `let` state (`board`, `current`, `next`, `score
 ### Tunable constants (top of `game.js`)
 
 `COLS`, `ROWS`, `BLOCK` (cell px size), `COLORS`, `LINE_SCORES`, initial `dropInterval`. If `COLS`/`ROWS`/`BLOCK` change, update the `width`/`height` attributes of `<canvas id="board">` in `index.html` to match (`COLS×BLOCK` by `ROWS×BLOCK`).
+
+## GitHub Actions
+
+- `.github/workflows/claude.yml` — responds to `@claude` mentions in issues/PR comments.
+- `.github/workflows/claude-code-review.yml` — reviews every PR automatically.
+- `.github/workflows/claude-issue-triage.yml` — runs on every issue open/edit; ensures a fixed label taxonomy exists (type: `bug`/`feature`/`enhancement`/`documentation`/`question`; area: `area-gameplay`/`area-rendering`/`area-input`/`area-scoring`/`area-ui`; priority: `priority-high`/`priority-medium`/`priority-low`) and has Claude apply the appropriate labels only — no comments, no code changes.
