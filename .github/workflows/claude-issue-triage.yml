@@ -51,14 +51,17 @@ jobs:
           additional_permissions: |
             actions: read
           claude_args: |
-            --allowed-tools "Bash(gh issue view:*),Bash(gh label list:*),Bash(gh issue edit:*)"
+            --allowed-tools "Bash(gh issue view:*),Bash(gh label list:*),Bash(gh issue edit:*),Bash(gh issue comment:*)"
           prompt: |
             Analiza el issue #${{ github.event.issue.number }} de este repositorio
             (Tetris en JavaScript vanilla, ver CLAUDE.md para la arquitectura) y
-            asígnale los labels apropiados. NO escribas ningún comentario en el
-            issue, NO modifiques código, NO cambies el título ni el cuerpo —
-            tu única acción permitida es aplicar labels con
-            `gh issue edit ${{ github.event.issue.number }} --add-label "..."`.
+            asígnale los labels apropiados. NO modifiques código, NO cambies el
+            título ni el cuerpo del issue — tus únicas acciones permitidas son
+            aplicar labels con
+            `gh issue edit ${{ github.event.issue.number }} --add-label "..."`
+            y, opcionalmente, dejar un comentario breve explicando tu
+            clasificación con
+            `gh issue comment ${{ github.event.issue.number }} --body "..."`.
 
             1. Lee el issue con `gh issue view ${{ github.event.issue.number }}`.
             2. Elige EXACTAMENTE un label de tipo:
@@ -83,5 +86,9 @@ jobs:
             6. No quites labels existentes salvo que sean del mismo grupo
                (tipo/prioridad) y contradigan tu elección — en ese caso usa
                `--remove-label` para el que sobra antes de agregar el nuevo.
+            7. Si dejas un comentario, debe ser breve (1-3 frases), explicar
+               qué labels aplicaste y por qué, y estar redactado en formato
+               Markdown válido y compatible con el renderizador de GitHub
+               (listas, negritas, código entre backticks, etc. según aplique).
 
             No hagas nada más allá de esto.
