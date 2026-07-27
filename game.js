@@ -171,6 +171,7 @@ function spawn() {
   next = randomPiece();
   if (collide(current.shape, current.x, current.y)) {
     endGame();
+    return;
   }
   drawNext();
 }
@@ -244,8 +245,11 @@ function drawNext() {
 }
 
 function endGame() {
+  if (gameOver) return;
   gameOver = true;
   cancelAnimationFrame(animId);
+  animId = null;
+  draw();
   overlayTitle.textContent = 'GAME OVER';
   overlayScore.textContent = `Puntuación: ${score.toLocaleString()}`;
   overlay.classList.remove('hidden');
@@ -277,11 +281,13 @@ function loop(ts) {
       lockPiece();
     }
   }
+  if (gameOver || paused) { animId = null; return; }
   draw();
   animId = requestAnimationFrame(loop);
 }
 
 function init() {
+  cancelAnimationFrame(animId);
   board = createBoard();
   score = 0;
   lines = 0;
@@ -295,7 +301,6 @@ function init() {
   spawn();
   updateHUD();
   overlay.classList.add('hidden');
-  cancelAnimationFrame(animId);
   animId = requestAnimationFrame(loop);
 }
 
