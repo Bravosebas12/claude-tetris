@@ -145,10 +145,10 @@ function lockPiece() {
 function spawn() {
   current = next;
   next = randomPiece();
+  drawNext();
   if (collide(current.shape, current.x, current.y)) {
     endGame();
   }
-  drawNext();
 }
 
 function updateHUD() {
@@ -220,6 +220,7 @@ function drawNext() {
 }
 
 function endGame() {
+  if (gameOver) return;
   gameOver = true;
   cancelAnimationFrame(animId);
   overlayTitle.textContent = 'GAME OVER';
@@ -242,6 +243,7 @@ function togglePause() {
 }
 
 function loop(ts) {
+  if (paused || gameOver) return;
   const dt = ts - lastTime;
   lastTime = ts;
   dropAccum += dt;
@@ -254,6 +256,7 @@ function loop(ts) {
     }
   }
   draw();
+  if (gameOver) return;
   animId = requestAnimationFrame(loop);
 }
 
