@@ -5,6 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Tetris</title>
   <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="skins.css" />
+  <link rel="stylesheet" href="records.css" />
+  <link rel="stylesheet" href="menu.css" />
 </head>
 <body>
   <div class="wrapper">
@@ -35,6 +38,8 @@
           <canvas id="next-canvas" width="120" height="120"></canvas>
         </div>
 
+        <div class="panel-section" id="skin-selector"></div>
+
         <div class="panel-section controls">
           <span class="label">CONTROLS</span>
           <ul>
@@ -42,7 +47,7 @@
             <li><kbd>↑</kbd> rotar</li>
             <li><kbd>↓</kbd> bajar</li>
             <li><kbd>Space</kbd> caída</li>
-            <li><kbd>P</kbd> pausa</li>
+            <li><kbd>P</kbd> / <kbd>Esc</kbd> pausa</li>
           </ul>
         </div>
       </aside>
@@ -52,11 +57,27 @@
       <div class="overlay-box">
         <p id="overlay-title">GAME OVER</p>
         <p id="overlay-score"></p>
+        <div id="gameover-records"></div>
+        <div id="gameover-name"></div>
         <button id="restart-btn">Reiniciar</button>
+      </div>
+    </div>
+
+    <div id="pause-menu" class="overlay hidden"></div>
+
+    <div id="start-screen" class="overlay">
+      <div class="overlay-box">
+        <h2 id="start-title">TETRIS</h2>
+        <div id="records-list"></div>
+        <div id="start-level-slot"></div>
+        <button id="play-btn">JUGAR</button>
       </div>
     </div>
   </div>
 
+  <script src="skins.js"></script>
+  <script src="records.js"></script>
+  <script src="menu.js"></script>
   <script src="game.js"></script>
 </body>
 </html>
