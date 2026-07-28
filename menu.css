@@ -1,0 +1,123 @@
+#pause-menu {
+  z-index: 20;
+}
+
+.menu-box {
+  min-width: 220px;
+}
+
+.menu-title {
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: 4px;
+  color: #7aa2f7;
+}
+
+.menu-btn {
+  width: 100%;
+  background: var(--kbd-bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px 20px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  letter-spacing: 1px;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.menu-btn:hover,
+.menu-btn:focus-visible {
+  background: #7aa2f7;
+  color: #0f0f17;
+  border-color: #7aa2f7;
+  outline: none;
+}
+
+.menu-controls-panel {
+  width: 100%;
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+}
+
+.menu-controls-panel.hidden {
+  display: none;
+}
+
+.menu-controls-panel ul {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.menu-controls-panel li {
+  font-size: 12px;
+  color: var(--controls-text);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.menu-controls-panel kbd {
+  background: var(--kbd-bg);
+  border: 1px solid var(--kbd-border);
+  border-radius: 3px;
+  padding: 1px 6px;
+  font-size: 11px;
+  color: var(--kbd-text);
+}
+
+.menu-level-selector {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+}
+
+.menu-level-label {
+  font-size: 10px;
+  letter-spacing: 2px;
+  color: var(--label);
+  font-weight: 600;
+}
+
+.menu-level-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 6px;
+  width: 100%;
+}
+
+.menu-level-btn {
+  background: var(--kbd-bg);
+  color: var(--kbd-text);
+  border: 1px solid var(--kbd-border);
+  border-radius: 4px;
+  padding: 6px 0;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.menu-level-btn:hover,
+.menu-level-btn:focus-visible {
+  border-color: #7aa2f7;
+  color: #7aa2f7;
+  outline: none;
+}
+
+.menu-level-btn.active {
+  background: #7aa2f7;
+  color: #0f0f17;
+  border-color: #7aa2f7;
+}
+
+#start-level-slot {
+  width: 100%;
+}
