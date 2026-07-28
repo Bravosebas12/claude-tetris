@@ -13,6 +13,7 @@ const COLORS = [
   '#e57373', // Z - red
   '#90caf9', // J - pale blue
   '#ffb74d', // L - orange
+  '#9e9e9e', // N - tuerca (gris metálico)
 ];
 
 const PIECES = [
@@ -24,6 +25,7 @@ const PIECES = [
   [[5,5,0],[0,5,5],[0,0,0]],                  // Z
   [[6,0,0],[6,6,6],[0,0,0]],                  // J
   [[0,0,7],[7,7,7],[0,0,0]],                  // L
+  [[8,8,8],[8,0,8],[8,8,8]],                  // N (tuerca)
 ];
 
 const LINE_SCORES = [0, 100, 300, 500, 800];
@@ -39,7 +41,6 @@ const overlay = document.getElementById('overlay');
 const overlayTitle = document.getElementById('overlay-title');
 const overlayScore = document.getElementById('overlay-score');
 const restartBtn = document.getElementById('restart-btn');
-const themeToggle = document.getElementById('theme-toggle');
 
 let board, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId;
 
@@ -48,7 +49,7 @@ function createBoard() {
 }
 
 function randomPiece() {
-  const type = Math.floor(Math.random() * 7) + 1;
+  const type = Math.floor(Math.random() * 8) + 1;
   const shape = PIECES[type].map(row => [...row]);
   return { type, shape, x: Math.floor(COLS / 2) - Math.floor(shape[0].length / 2), y: 0 };
 }
@@ -145,10 +146,10 @@ function lockPiece() {
 function spawn() {
   current = next;
   next = randomPiece();
-  drawNext();
   if (collide(current.shape, current.x, current.y)) {
     endGame();
   }
+  drawNext();
 }
 
 function updateHUD() {
@@ -170,7 +171,7 @@ function drawBlock(context, x, y, colorIndex, size, alpha) {
 }
 
 function drawGrid() {
-  ctx.strokeStyle = getComputedStyle(document.body).getPropertyValue('--grid-color').trim();
+  ctx.strokeStyle = getComputedStyle(document.body).getPropertyValue('--grid-line').trim();
   ctx.lineWidth = 0.5;
   for (let c = 1; c < COLS; c++) {
     ctx.beginPath();
@@ -220,7 +221,6 @@ function drawNext() {
 }
 
 function endGame() {
-  if (gameOver) return;
   gameOver = true;
   cancelAnimationFrame(animId);
   overlayTitle.textContent = 'GAME OVER';
@@ -243,7 +243,6 @@ function togglePause() {
 }
 
 function loop(ts) {
-  if (paused || gameOver) return;
   const dt = ts - lastTime;
   lastTime = ts;
   dropAccum += dt;
@@ -255,8 +254,8 @@ function loop(ts) {
       lockPiece();
     }
   }
-  draw();
   if (gameOver) return;
+  draw();
   animId = requestAnimationFrame(loop);
 }
 
@@ -305,14 +304,29 @@ document.addEventListener('keydown', e => {
 
 restartBtn.addEventListener('click', init);
 
+const themeToggle = document.getElementById('theme-toggle');
+const toggleIcon = themeToggle.querySelector('.toggle-icon');
+const toggleLabel = themeToggle.querySelector('.toggle-label');
+
 function applyTheme(isLight) {
-  document.body.classList.toggle('light-theme', isLight);
-  themeToggle.checked = isLight;
-  localStorage.setItem('tetris-theme', isLight ? 'light' : 'dark');
+  if (isLight) {
+    document.body.classList.add('light-mode');
+    toggleIcon.textContent = '☀';
+    toggleLabel.textContent = 'DARK';
+  } else {
+    document.body.classList.remove('light-mode');
+    toggleIcon.textContent = '☾';
+    toggleLabel.textContent = 'LIGHT';
+  }
 }
 
-themeToggle.addEventListener('change', () => applyTheme(themeToggle.checked));
+const savedTheme = localStorage.getItem('tetris-theme');
+applyTheme(savedTheme === 'light');
 
-applyTheme(localStorage.getItem('tetris-theme') === 'light');
+themeToggle.addEventListener('click', () => {
+  const isLight = !document.body.classList.contains('light-mode');
+  applyTheme(isLight);
+  localStorage.setItem('tetris-theme', isLight ? 'light' : 'dark');
+});
 
 init();
