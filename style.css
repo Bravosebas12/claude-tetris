@@ -167,6 +167,84 @@ kbd {
   color: var(--kbd-text);
 }
 
+/* ---- Records ---- */
+.records-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  counter-reset: rec;
+}
+
+.records-list li {
+  counter-increment: rec;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text);
+  font-family: 'Courier New', Courier, monospace;
+}
+
+.records-list li::before {
+  content: counter(rec) '.';
+  color: var(--label);
+  margin-right: 4px;
+}
+
+.records-list li.highlight {
+  color: var(--accent);
+  font-weight: 700;
+  text-shadow: 0 0 8px var(--title-glow);
+}
+
+.records-list .rec-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.records-list .records-empty {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.records-list .records-empty::before {
+  content: '';
+  margin: 0;
+}
+
+.records-extra {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.records-extra strong {
+  color: var(--accent);
+}
+
+.reset-records-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 6px 10px;
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.reset-records-btn:hover {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
 /* ---- Overlay ---- */
 .overlay {
   position: absolute;
@@ -202,6 +280,63 @@ kbd {
   font-family: 'Courier New', Courier, monospace;
   font-size: 14px;
   color: var(--accent);
+}
+
+#overlay-stats {
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.highscore-form {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 0;
+}
+
+.highscore-form.hidden {
+  display: none;
+}
+
+.highscore-label {
+  font-size: 12px;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+#player-name {
+  background: var(--panel-bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  padding: 8px 10px;
+  font-size: 14px;
+  text-align: center;
+  width: 160px;
+}
+
+#player-name:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+#save-score-btn {
+  background: var(--accent);
+  color: var(--accent-text);
+  border: none;
+  border-radius: 6px;
+  padding: 8px 20px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  letter-spacing: 0.5px;
+  transition: background 0.15s;
+}
+
+#save-score-btn:hover {
+  background: var(--accent-hover);
 }
 
 #restart-btn {
