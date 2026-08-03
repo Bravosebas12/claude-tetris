@@ -4,17 +4,24 @@ const COLS = 10;
 const ROWS = 20;
 const BLOCK = 30;
 
-const COLORS = [
-  null,
-  '#4dd0e1', // I - cyan
-  '#ffd54f', // O - yellow
-  '#ba68c8', // T - purple
-  '#81c784', // S - green
-  '#e57373', // Z - red
-  '#7986cb', // J - indigo
-  '#ffb74d', // L - orange
-  '#90a4ae', // Tuerca - acero
-];
+const SKINS = {
+  retro: {
+    label: 'Retro',
+    colors: [null, '#4dd0e1', '#ffd54f', '#ba68c8', '#81c784', '#e57373', '#7986cb', '#ffb74d', '#90a4ae'],
+  },
+  neon: {
+    label: 'Neon',
+    colors: [null, '#00e5ff', '#faff00', '#e040fb', '#00ff85', '#ff1744', '#536dfe', '#ff9100', '#b0bec5'],
+  },
+  pastel: {
+    label: 'Pastel',
+    colors: [null, '#a8dadc', '#ffe8a3', '#d7bde2', '#b7e4c7', '#f4a6a6', '#b8c6ec', '#ffd6a5', '#cfd8dc'],
+  },
+  pixel: {
+    label: 'Pixel art',
+    colors: [null, '#26c6da', '#fdd835', '#ab47bc', '#66bb6a', '#ef5350', '#5c6bc0', '#ffa726', '#78909c'],
+  },
+};
 
 const NUT_TYPE = 8;
 
@@ -60,6 +67,7 @@ const resetRecordsBtn = document.getElementById('reset-records-btn');
 const highscoreForm = document.getElementById('highscore-form');
 const playerNameInput = document.getElementById('player-name');
 const saveScoreBtn = document.getElementById('save-score-btn');
+const skinSelect = document.getElementById('skin-select');
 
 let board, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId;
 let comboCount, maxComboThisGame;
@@ -192,6 +200,31 @@ themeToggleBtn.addEventListener('click', () => {
   applyTheme(nextTheme);
 });
 
+const SKIN_KEY = 'tetris-skin';
+let currentSkinId = 'retro';
+
+function applySkin(id) {
+  if (!SKINS[id]) id = 'retro';
+  currentSkinId = id;
+  document.documentElement.setAttribute('data-skin', id);
+  skinSelect.value = id;
+  // Redraw immediately if a game is already in progress.
+  if (current) draw();
+  if (next) drawNext();
+}
+
+function getPreferredSkin() {
+  const saved = localStorage.getItem(SKIN_KEY);
+  return SKINS[saved] ? saved : 'retro';
+}
+
+applySkin(getPreferredSkin());
+
+skinSelect.addEventListener('change', () => {
+  localStorage.setItem(SKIN_KEY, skinSelect.value);
+  applySkin(skinSelect.value);
+});
+
 function createBoard() {
   return Array.from({ length: ROWS }, () => new Array(COLS).fill(0));
 }
@@ -314,9 +347,17 @@ function updateHUD() {
   levelEl.textContent = level;
 }
 
-function drawBlock(context, x, y, colorIndex, size, alpha) {
-  if (!colorIndex) return;
-  const color = COLORS[colorIndex];
+function roundedRectPath(context, x, y, w, h, r) {
+  context.beginPath();
+  context.moveTo(x + r, y);
+  context.arcTo(x + w, y, x + w, y + h, r);
+  context.arcTo(x + w, y + h, x, y + h, r);
+  context.arcTo(x, y + h, x, y, r);
+  context.arcTo(x, y, x + w, y, r);
+  context.closePath();
+}
+
+function drawBlockRetro(context, x, y, color, size, alpha) {
   context.globalAlpha = alpha ?? 1;
   context.fillStyle = color;
   context.fillRect(x * size + 1, y * size + 1, size - 2, size - 2);
@@ -326,9 +367,71 @@ function drawBlock(context, x, y, colorIndex, size, alpha) {
   context.globalAlpha = 1;
 }
 
+function drawBlockNeon(context, x, y, color, size, alpha) {
+  context.save();
+  context.globalAlpha = alpha ?? 1;
+  const px = x * size + 2, py = y * size + 2, s = size - 4;
+  context.shadowColor = color;
+  context.shadowBlur = 12;
+  context.fillStyle = 'rgba(8, 8, 16, 0.85)';
+  context.fillRect(px, py, s, s);
+  context.shadowBlur = 6;
+  context.strokeStyle = color;
+  context.lineWidth = 2;
+  context.strokeRect(px, py, s, s);
+  context.restore();
+}
+
+function drawBlockPastel(context, x, y, color, size, alpha) {
+  context.globalAlpha = alpha ?? 1;
+  const px = x * size + 2, py = y * size + 2, s = size - 4;
+  roundedRectPath(context, px, py, s, s, size * 0.22);
+  context.fillStyle = color;
+  context.fill();
+  roundedRectPath(context, px, py, s, s * 0.42, size * 0.18);
+  context.fillStyle = 'rgba(255,255,255,0.35)';
+  context.fill();
+  context.globalAlpha = 1;
+}
+
+function drawBlockPixel(context, x, y, color, size, alpha) {
+  context.globalAlpha = alpha ?? 1;
+  const px = x * size + 1, py = y * size + 1, s = size - 2;
+  context.fillStyle = color;
+  context.fillRect(px, py, s, s);
+  // pixel-art dither texture
+  const sub = 4;
+  const cell = s / sub;
+  context.fillStyle = 'rgba(0,0,0,0.15)';
+  for (let ry = 0; ry < sub; ry++) {
+    for (let rx = 0; rx < sub; rx++) {
+      if ((rx + ry) % 2 === 0) continue;
+      context.fillRect(px + rx * cell, py + ry * cell, cell, cell);
+    }
+  }
+  context.strokeStyle = 'rgba(0,0,0,0.45)';
+  context.lineWidth = 1;
+  context.strokeRect(px + 0.5, py + 0.5, s - 1, s - 1);
+  context.globalAlpha = 1;
+}
+
+const BLOCK_RENDERERS = {
+  retro: drawBlockRetro,
+  neon: drawBlockNeon,
+  pastel: drawBlockPastel,
+  pixel: drawBlockPixel,
+};
+
+function drawBlock(context, x, y, colorIndex, size, alpha) {
+  if (!colorIndex) return;
+  const color = SKINS[currentSkinId].colors[colorIndex];
+  const renderer = BLOCK_RENDERERS[currentSkinId] || drawBlockRetro;
+  renderer(context, x, y, color, size, alpha);
+}
+
 function drawNutHole(context, x, y, size, alpha) {
   context.globalAlpha = alpha ?? 1;
-  context.strokeStyle = COLORS[NUT_TYPE];
+  context.strokeStyle = SKINS[currentSkinId].colors[NUT_TYPE];
   context.lineWidth = 2;
   context.beginPath();
   context.arc(x * size + size / 2, y * size + size / 2, size * 0.3, 0, Math.PI * 2);

@@ -90,6 +90,51 @@ body {
   border-color: var(--accent);
 }
 
+.skin-select {
+  position: absolute;
+  top: 0;
+  left: 0;
+  background: var(--panel-bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  cursor: pointer;
+  padding: 6px 8px;
+  font-size: 12px;
+  font-family: inherit;
+  line-height: 1;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.skin-select:hover,
+.skin-select:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+
+/* ---- Skins ---- */
+[data-skin="neon"] #board,
+[data-skin="neon"] #next-canvas {
+  background: #05050a;
+  border-color: #00e5ff;
+  box-shadow: 0 0 30px rgba(0, 229, 255, 0.35);
+}
+
+[data-skin="pastel"] #board,
+[data-skin="pastel"] #next-canvas {
+  background: #fdfcff;
+  border-color: #d7bde2;
+  border-radius: 16px;
+}
+
+[data-skin="pixel"] #board,
+[data-skin="pixel"] #next-canvas {
+  border-color: #78909c;
+  border-width: 3px;
+  border-radius: 0;
+  image-rendering: pixelated;
+}
+
 .game-container {
   display: flex;
   gap: 20px;
