@@ -1,0 +1,52 @@
+[
+  {
+    "name": "area:gameplay",
+    "color": "1d76db",
+    "description": "Mecánicas: piezas, rotación, colisiones, líneas, puntuación"
+  },
+  {
+    "name": "area:ui",
+    "color": "5319e7",
+    "description": "HTML/CSS, marcador, overlays, layout"
+  },
+  {
+    "name": "area:rendering",
+    "color": "0e8a16",
+    "description": "Canvas, dibujado, ghost piece, animación"
+  },
+  {
+    "name": "area:controls",
+    "color": "fbca04",
+    "description": "Entrada de teclado y bindings"
+  },
+  {
+    "name": "area:performance",
+    "color": "d93f0b",
+    "description": "Bucle de juego, requestAnimationFrame, timing"
+  },
+  {
+    "name": "priority:high",
+    "color": "b60205",
+    "description": "Alta prioridad"
+  },
+  {
+    "name": "priority:medium",
+    "color": "e99695",
+    "description": "Prioridad media"
+  },
+  {
+    "name": "priority:low",
+    "color": "c2e0c6",
+    "description": "Prioridad baja"
+  },
+  {
+    "name": "ai-triaged",
+    "color": "bfd4f2",
+    "description": "Analizado automáticamente por Claude"
+  },
+  {
+    "name": "needs-info",
+    "color": "d4c5f9",
+    "description": "Falta información para poder actuar"
+  }
+]

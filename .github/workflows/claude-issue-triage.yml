@@ -1,0 +1,119 @@
+name: Claude Issue Triage
+
+on:
+  issues:
+    types: [opened, edited]
+
+concurrency:
+  group: issue-triage-${{ github.event.issue.number }}
+  cancel-in-progress: true
+
+jobs:
+  triage:
+    # Skip closed issues, bot-authored events, and anything already handled by the
+    # `Claude Code` workflow (claude.yml), which reacts to explicit @claude mentions.
+    if: |
+      github.event.issue.state == 'open' &&
+      github.event.sender.type != 'Bot' &&
+      !contains(github.event.issue.title, '@claude') &&
+      !contains(github.event.issue.body, '@claude')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write        # create branch and push commits
+      issues: write           # label and comment on the issue
+      pull-requests: write    # open the fix PR
+      id-token: write
+      actions: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Sync project labels
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          jq -r '.[] | [.name, .color, .description] | @tsv' .github/labels.json |
+          while IFS=$'\t' read -r name color desc; do
+            gh label create "$name" --color "$color" --description "$desc" --force
+          done
+
+      - name: Triage, diagnose and implement
+        id: claude
+        uses: anthropics/claude-code-action@v1
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+
+          claude_args: '--allowed-tools "Read,Write,Edit,Glob,Grep,Bash(gh issue *),Bash(gh label list),Bash(gh pr *),Bash(gh api *),Bash(git *)"'
+
+          prompt: |
+            Estás triando el issue #${{ github.event.issue.number }} del repositorio
+            ${{ github.repository }} (un Tetris en JavaScript vanilla sin build ni tests;
+            lee CLAUDE.md para la arquitectura completa antes de tocar nada).
+
+            Sigue estas cuatro fases, en orden, sin saltarte ninguna:
+
+            ## Fase 0 — Leer
+            - `gh issue view ${{ github.event.issue.number }} --json title,body,labels,comments`
+            - Lee `CLAUDE.md` para entender el modelo de tablero, piezas, colisiones, etc.
+            - Lee los archivos fuente relevantes (`game.js`, `index.html`, `style.css`) antes
+              de diagnosticar o editar nada.
+
+            ## Fase 1 — Etiquetar
+            - `gh label list` para ver las etiquetas disponibles (incluye el set del proyecto:
+              `area:gameplay`, `area:ui`, `area:rendering`, `area:controls`, `area:performance`,
+              `priority:high/medium/low`, `ai-triaged`, `needs-info`, además de las por defecto
+              `bug`, `enhancement`, `documentation`, `question`, `duplicate`, `invalid`, `wontfix`).
+            - Aplica con `gh issue edit ${{ github.event.issue.number }} --add-label "..."`.
+            - Reglas: exactamente un tipo (`bug`/`enhancement`/`documentation`/`question`),
+              uno o más `area:*` relevantes, exactamente un `priority:*`, y siempre `ai-triaged`.
+            - Nunca uses una etiqueta que no exista ya en el repositorio.
+
+            ## Fase 2 — Diagnosticar
+            Publica un comentario (`gh issue comment ${{ github.event.issue.number }} --body-file <archivo>`,
+            escribiendo antes el cuerpo a un archivo temporal para evitar problemas de escapado)
+            con esta estructura exacta:
+
+            ```
+            ## Diagnóstico automático
+
+            **Resumen:** ...
+            **Área afectada:** ...
+            **Archivos implicados:** ...
+            **Causa probable / comportamiento actual:** ...
+            **Enfoque propuesto:** ...
+            **Riesgos y alcance:** ...
+            ```
+
+            ## Fase 3 — Implementar (solo si el issue es accionable)
+            Detente aquí y NO implementes nada si el issue quedó etiquetado como `question`,
+            `invalid`, `wontfix`, `duplicate`, o si es demasiado vago para actuar sin más
+            información; en su lugar añade la etiqueta `needs-info` y explica en el comentario
+            de la Fase 2 qué información falta.
+
+            Si es accionable:
+            1. Comprueba si ya existe un Pull Request para este issue:
+               `gh pr list --state open --search "${{ github.event.issue.number }} in:body"`
+               y `git ls-remote --heads origin "claude/issue-${{ github.event.issue.number }}-*"`.
+               - Si ya existe: haz checkout de esa rama, añade tus cambios como un nuevo commit,
+                 haz push, y comenta en ese PR explicando la actualización. NO abras un
+                 segundo PR (esto es importante: el issue puede editarse varias veces y no debe
+                 generar PRs duplicados).
+               - Si no existe: crea la rama `claude/issue-${{ github.event.issue.number }}-<fecha-hora>`
+                 desde `main`.
+            2. Implementa la solución más simple y acotada que resuelva el issue, siguiendo los
+               patrones y el estilo ya presentes en el código (ver CLAUDE.md).
+            3. Guardarraíles estrictos:
+               - Solo puedes modificar `game.js`, `index.html`, `style.css` y `README.md`.
+               - Nunca modifiques nada bajo `.github/`.
+               - Nunca hagas push directo a `main`; todo el trabajo va en la rama `claude/issue-*`.
+               - Si cambias `COLS`, `ROWS` o `BLOCK` en `game.js`, actualiza también los atributos
+                 `width`/`height` de `<canvas id="board">` en `index.html` para que coincidan
+                 (`COLS × BLOCK` por `ROWS × BLOCK`), tal como indica CLAUDE.md.
+            4. Haz commit de los cambios y, si es un PR nuevo, ábrelo con
+               `gh pr create --base main --title "..." --body "..."` incluyendo
+               `Closes #${{ github.event.issue.number }}` en el cuerpo del PR.
