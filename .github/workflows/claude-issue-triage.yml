@@ -1,0 +1,131 @@
+name: Claude Issue Triage
+
+on:
+  issues:
+    types: [opened, edited]
+
+# Una corrida por issue: si se edita varias veces seguidas, se cancela la anterior.
+concurrency:
+  group: claude-issue-triage-${{ github.event.issue.number }}
+  cancel-in-progress: true
+
+jobs:
+  triage:
+    # Ignora ediciones hechas por bots (evita re-disparos automáticos).
+    if: github.event.sender.type != 'Bot'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write # crear labels, etiquetar y comentar
+      id-token: write
+
+    steps:
+      - name: Crear labels de la taxonomía (idempotente)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          crear() { gh label create "$1" --color "$2" --description "$3" 2>/dev/null || true; }
+
+          crear "tipo:bug"             d73a4a "Algo no funciona como debería"
+          crear "tipo:mejora"          a2eeef "Nueva funcionalidad o mejora"
+          crear "tipo:docs"            0075ca "Documentación (README, CLAUDE.md)"
+          crear "tipo:pregunta"        d876e3 "Duda o solicitud de aclaración"
+
+          crear "area:gameplay"        1d76db "Lógica de juego, piezas, rotación, colisiones"
+          crear "area:render"          5319e7 "Dibujo en canvas, colores, preview NEXT"
+          crear "area:ui"              0e8a16 "HTML/CSS, layout, overlays, panel"
+          crear "area:controles"       fbca04 "Teclado, pausa, reinicio"
+          crear "area:scoring"         c2e0c6 "Puntaje, líneas, nivel, velocidad"
+          crear "area:build"           bfd4f2 "Workflows, tooling, repo"
+
+          crear "prioridad:alta"       b60205 "Bloquea o rompe el juego"
+          crear "prioridad:media"      fbca04 "Molesto pero con workaround"
+          crear "prioridad:baja"       c5def5 "Cosmético o nice-to-have"
+
+          crear "complejidad:trivial"  c5def5 "Cambio de pocas líneas"
+          crear "complejidad:media"    fbca04 "Toca varias funciones o archivos"
+          crear "complejidad:alta"     b60205 "Cambio estructural o de invariantes"
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Triage con Claude
+        uses: anthropics/claude-code-action@v1
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          claude_args: '--allowed-tools "Read,Grep,Glob,Bash(gh label list),Bash(gh issue view:*),Bash(gh issue edit:*),Bash(gh issue comment:*),Bash(gh api:*),Bash(cat:*),Bash(mktemp:*)"'
+          prompt: |
+            Sos el triador automático de issues del repositorio ${{ github.repository }} (Tetris en JS vanilla sobre canvas).
+            Trabajás sobre el issue número ${{ github.event.issue.number }}. El repo ya está checkouteado en el directorio actual.
+
+            ## Paso 1 — Entender el issue y el código
+            1. Leé el issue: `gh issue view ${{ github.event.issue.number }} --json title,body,labels,comments`
+            2. Leé `CLAUDE.md` y el código relevante (`game.js`, `index.html`, `style.css`, `README.md`) para
+               fundamentar el diagnóstico en el código real. Invariantes clave del proyecto:
+               - El board es `ROWS × COLS` de ints: `0` vacío, `1–7` tipo de pieza, que también indexa `COLORS` y `PIECES`.
+               - Las piezas son matrices cuadradas para que `rotateCW` (transponer + revertir) funcione; `tryRotate` prueba kicks `[0,-1,1,-2,2]`.
+               - Render de redibujo completo por frame (`loop()` → `draw()`); `drawNext()` solo se llama desde `spawn()`.
+               - Dos relojes: `requestAnimationFrame` para frames, `dropAccum`/`dropInterval` para gravedad; al reanudar hay que resetear `lastTime`.
+               - El tamaño del canvas está hardcodeado en `index.html` (`#board` 300×600 = COLS*BLOCK × ROWS*BLOCK, `#next-canvas` 120×120).
+               - Scoring: `LINE_SCORES[cleared] * level`, +2/celda en hard drop, +1/fila en soft drop; nivel = `floor(lines/10)+1`.
+
+            ## Paso 2 — Asignar labels
+            Elegí **exactamente un** `tipo:`, **una o más** `area:`, **exactamente un** `prioridad:` y **exactamente un** `complejidad:`.
+            Usá ÚNICAMENTE labels de esta lista (ya existen todas, no crees ninguna):
+
+            tipo:bug, tipo:mejora, tipo:docs, tipo:pregunta
+            area:gameplay, area:render, area:ui, area:controles, area:scoring, area:build
+            prioridad:alta, prioridad:media, prioridad:baja
+            complejidad:trivial, complejidad:media, complejidad:alta
+
+            Aplicalas con `gh issue edit ${{ github.event.issue.number }} --add-label "a,b,c"`.
+            Si el issue ya tiene labels de estas familias que tras tu análisis ya no aplican, quitalas con `--remove-label`.
+            No toques labels ajenas a estas familias (por ejemplo `good first issue`).
+
+            ## Paso 3 — Publicar el diagnóstico como comentario sticky
+            Escribí el comentario a un archivo temporal (evita problemas de escaping con acentos y markdown) con este formato EXACTO:
+
+            ```
+            ## 🔍 Diagnóstico automático
+
+            **Tipo:** … · **Área:** … · **Prioridad:** … · **Complejidad:** …
+
+            ### Resumen del problema
+            <qué está pasando y por qué, en 2-4 frases, apoyado en lo que leíste del código>
+
+            ### Enfoque de solución propuesto
+            1. <paso concreto de implementación>
+            2. …
+
+            ### Criterios de aceptación
+            - [ ] <condición verificable>
+            - [ ] …
+
+            ### Complejidad y riesgos
+            <estimación de esfuerzo + qué invariantes de CLAUDE.md podrían romperse>
+
+            ---
+            <sub>Generado automáticamente por Claude. Se actualiza al editar el issue.</sub>
+            <!-- claude-triage -->
+            ```
+
+            Luego, para que haya UN SOLO comentario de diagnóstico:
+            1. Buscá si ya existe:
+               `gh api repos/${{ github.repository }}/issues/${{ github.event.issue.number }}/comments --jq '.[] | select(.body | contains("<!-- claude-triage -->")) | .id'`
+            2. Si devolvió un id → actualizalo:
+               `gh api --method PATCH repos/${{ github.repository }}/issues/comments/<ID> -F body=@<archivo>`
+            3. Si no devolvió nada → creá uno nuevo:
+               `gh issue comment ${{ github.event.issue.number }} --body-file <archivo>`
+
+            ## Reglas
+            - Todo el texto de salida en **español** (convención del repo).
+            - El comentario NO debe contener nunca la cadena `@claude`: dispararía otro workflow innecesariamente.
+            - Si el issue es demasiado vago para diagnosticar, etiquetá `tipo:pregunta` + `prioridad:baja` y usá el mismo
+              formato de comentario para pedir concretamente la información que falta (pasos para reproducir, qué esperabas, etc.).
+            - No modifiques archivos del repo, no crees ramas ni PRs. Tu única salida son las labels y ese comentario.
