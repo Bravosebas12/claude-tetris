@@ -1,4 +1,4 @@
-name: Claude Issue Automatic Formatter
+name: Claude Issue Triage
 
 on:
   issues:
