@@ -19,34 +19,43 @@ jobs:
 
       - name: Format issue with Claude
         uses: anthropics/claude-code-action@v1
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          claude_args: "--allowedTools Bash(gh issue *)"
+          claude_args: "--allowedTools Bash"
           prompt: |
             You are a GitHub issue formatter for a Tetris game project (vanilla JS/HTML/CSS, no dependencies).
             An issue was just ${{ github.event.action }} with the following details:
             - Issue number: #${{ github.event.issue.number }}
             - Title: ${{ github.event.issue.title }}
-            - Body: ${{ github.event.issue.body }}
             - Author: ${{ github.event.issue.user.login }}
+
+            Issue Body:
+            ${{ github.event.issue.body }}
+
             Your tasks:
-            1. **Add labels** based on the issue content. Use only these labels:
-               - `bug` — something is broken or behaving incorrectly
-               - `enhancement` — new feature or improvement request
-               - `question` — asking for help or clarification
-               - `documentation` — docs need updating
-               - `good first issue` — simple, beginner-friendly task
-               - `duplicate` — if it seems like a known/repeated problem
-            2. **Post a comment** on the issue that includes:
+            1. Add labels based on the issue content. Use only these labels:
+               - bug
+               - enhancement
+               - question
+               - documentation
+               - good first issue
+               - duplicate
+            2. Post a comment on the issue that includes:
                - A brief, friendly summary of what the issue is about (1-2 sentences)
                - A "Formatted Report" section with:
-                 - **Type**: Bug / Feature Request / Question / Other
-                 - **Summary**: one clear sentence describing the problem or request
-                 - **Steps to reproduce** (for bugs): list them if not provided, ask the user to provide them if it's a bug
-                 - **Expected behavior** (for bugs): what should happen
-                 - **Suggested labels**: the labels you applied and why
+                 - Type: Bug / Feature Request / Question / Other
+                 - Summary: one clear sentence describing the problem or request
+                 - Steps to reproduce (for bugs): list them if provided, or ask the user to provide them if it is a bug
+                 - Expected behavior (for bugs): what should happen
+                 - Suggested labels: the labels you applied and why
                - A closing note thanking the contributor
-            Use the `gh` CLI to apply labels and post the comment. Example commands:
-              gh issue edit ${{ github.event.issue.number }} --add-label "bug" --repo ${{ github.repository }}
-              gh issue comment ${{ github.event.issue.number }} --body "..." --repo ${{ github.repository }}
-            Be concise, helpful, and friendly. Do not over-engineer the response.
+
+            IMPORTANT: Use the GitHub CLI (`gh`) to edit labels and post the comment on this repository.
+            Examples of exact commands to run:
+              gh issue edit ${{ github.event.issue.number }} --add-label "bug"
+              gh issue comment ${{ github.event.issue.number }} --body "Texto del comentario..."
+
+            Be concise, helpful, and friendly. Execute the commands now.
