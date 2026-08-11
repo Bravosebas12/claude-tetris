@@ -48,7 +48,9 @@ jobs:
                - Si no existe, créalo con:
                    gh issue comment ${{ github.event.issue.number }} --body "..."
 
-               El comentario debe incluir, en este orden:
+               El comentario debe estar escrito en formato Markdown válido y bien
+               renderizado por GitHub (encabezados, listas y bloques de código con
+               ``` cuando corresponda). Debe incluir, en este orden:
                - **Resumen**: el problema en 1-2 frases.
                - **Causa probable**: análisis técnico de por qué ocurre.
                - **Código involucrado**: archivos y funciones concretas probablemente
