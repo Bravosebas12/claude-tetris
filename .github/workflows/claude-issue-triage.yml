@@ -1,0 +1,64 @@
+name: Claude Issue Triage
+
+on:
+  issues:
+    types: [opened, edited]
+
+jobs:
+  triage:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      id-token: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Run Claude Issue Triage
+        id: claude-triage
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+
+          prompt: |
+            Analiza el issue #${{ github.event.issue.number }} de este repositorio
+            (título y cuerpo) y haz un triage técnico. No implementes ninguna
+            solución ni modifiques código: esto es solo clasificación y diagnóstico.
+
+            1. Etiquetado
+               Asigna las labels que correspondan usando:
+                 gh issue edit ${{ github.event.issue.number }} --add-label "<label>"
+               Usa EXCLUSIVAMENTE labels que ya existan en el repositorio (revísalas
+               con `gh label list` si tienes dudas). No crees labels nuevas. Puedes
+               asignar más de una si aplica.
+
+            2. Análisis técnico
+               Revisa el código relevante del repositorio (game.js, index.html,
+               style.css, CLAUDE.md) para identificar qué partes del código están
+               relacionadas con lo descrito en el issue.
+
+            3. Diagnóstico (comentario)
+               Antes de comentar, revisa si ya dejaste un comentario de diagnóstico
+               anterior en este issue (por ejemplo con `gh issue view ${{ github.event.issue.number }} --comments`).
+               - Si ya existe un comentario tuyo de diagnóstico, actualízalo con:
+                   gh issue comment ${{ github.event.issue.number }} --edit-last --body "..."
+               - Si no existe, créalo con:
+                   gh issue comment ${{ github.event.issue.number }} --body "..."
+
+               El comentario debe incluir, en este orden:
+               - **Resumen**: el problema en 1-2 frases.
+               - **Causa probable**: análisis técnico de por qué ocurre.
+               - **Código involucrado**: archivos y funciones concretas probablemente
+                 implicadas (ej. `collide()`, `tryRotate()`, `clearLines()`, etc.).
+               - **Enfoque de solución sugerido**: a alto nivel, sin código.
+               - **Complejidad estimada**: baja, media o alta, con una breve razón.
+
+               Si el issue no tiene información suficiente para diagnosticar (por
+               ejemplo, faltan pasos para reproducir), dilo explícitamente en el
+               comentario y pide la información faltante en vez de inventar una causa.
+
+          claude_args: |
+            --allowed-tools "Bash(gh issue edit:*),Bash(gh issue comment:*),Bash(gh issue view:*),Bash(gh label list:*)"
