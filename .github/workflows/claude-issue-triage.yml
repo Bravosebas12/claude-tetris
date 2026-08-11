@@ -37,6 +37,8 @@ jobs:
           prompt: |
             Analizá el issue #${{ github.event.issue.number }} del repo ${{ github.repository }} (Tetris vanilla JS/HTML5 Canvas, ver CLAUDE.md para arquitectura) y hacé triage automático.
 
+            Todo comentario que publiques debe estar en formato Markdown válido, interpretable por GitHub (encabezados, listas, checkboxes, bloques de código con backticks, etc.).
+
             Pasos:
 
             1. Leé el issue completo: `gh issue view ${{ github.event.issue.number }} --repo ${{ github.repository }} --json title,body,labels,comments`.
