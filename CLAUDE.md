@@ -10,12 +10,12 @@ Vanilla JS/HTML5 Canvas Tetris implementation. No build step, no dependencies, n
 
 ## Architecture (game.js)
 
-- **Board**: `ROWS × COLS` matrix, each cell `0` (empty) or `1-7` (color index of the locking piece).
-- **Pieces**: `PIECES` array of shape matrices; `COLORS` array maps piece type to color. Rotation via `rotateCW` (transpose + reverse rows).
+- **Board**: `ROWS × COLS` matrix, each cell `0` (empty), `1-8` (color index of the locking piece), or `9`/`HOLE` (nut's dead center cell).
+- **Pieces**: `PIECES` array of shape matrices; `COLORS` array maps piece type to color. Rotation via `rotateCW` (transpose + reverse rows). Piece 8 is the **nut** (`NUT`): a 3×3 shape with an empty center, `[[8,8,8],[8,0,8],[8,8,8]]`. When it locks, `merge()` stamps `HOLE` into the center board cell (unless something is already there) — that cell becomes permanently unreachable, walled in on all 4 sides.
 - **Collision**: `collide(shape, ox, oy)` checks bounds and existing board cells.
 - **Wall kicks**: `tryRotate` tries offsets `[0, -1, 1, -2, 2]` after rotating.
 - **Game loop**: `requestAnimationFrame`-driven `loop()`, accumulates delta time against `dropInterval`.
-- **Line clear**: `clearLines()` scans bottom-up, splices full rows, unshifts empty rows at top.
+- **Line clear**: `clearLines()` scans bottom-up, splices full rows, unshifts empty rows at top. Rows containing a `HOLE` cell never count as full — they can never be cleared.
 - **Scoring**: `LINE_SCORES = [0, 100, 300, 500, 800]` × level; hard drop = 2 pts/row, soft drop = 1 pt/row.
 - **Level/speed**: level = `floor(lines/10) + 1`; `dropInterval = max(100, 1000 - (level-1)*90)`.
 - **Ghost piece**: `ghostY()` projects landing row, drawn at `globalAlpha=0.2`.
