@@ -62,6 +62,9 @@ jobs:
                issue (check existing comments for one from you first), update
                your understanding but only post a new comment if the edited
                issue changes the diagnosis — don't spam duplicate comments.
+               Write the comment body in GitHub-flavored Markdown (headings,
+               bullet lists, and `code`/``` fenced blocks for file names,
+               functions, and line ranges) so it renders cleanly on GitHub.
 
             Do not push commits, open PRs, or modify any files in this run —
             this is triage/diagnosis only.
