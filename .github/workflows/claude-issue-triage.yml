@@ -1,0 +1,69 @@
+name: Claude Issue Triage
+
+on:
+  issues:
+    types: [opened, edited]
+
+jobs:
+  triage:
+    # Only react to edits on the issue body/title itself, not every sub-event,
+    # and skip re-triage loops triggered by Claude's own comments.
+    if: github.event.issue.pull_request == null
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      id-token: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Run Claude Issue Triage
+        id: claude-triage
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: |
+            You are triaging GitHub issue #${{ github.event.issue.number }} in ${{ github.repository }}.
+
+            1. Read the issue title and body, and skim the repository (this is a
+               vanilla JS Tetris game: index.html, style.css, game.js — see
+               CLAUDE.md for architecture) to understand where the reported
+               problem likely lives.
+            2. Apply the labels that best fit, choosing from the repo's existing
+               labels where possible (list them with `gh label list` first).
+               Cover at minimum:
+                 - Type: bug, enhancement, question, documentation
+                 - Area, if evident: e.g. rendering, controls/input, scoring,
+                   collision, performance
+                 - Severity/priority, if evident from the report
+               If a clearly-needed label doesn't exist yet, create it with
+               `gh label create` using a short, descriptive name and a
+               reasonable color before applying it. Use
+               `gh issue edit ${{ github.event.issue.number }} --add-label "..."`
+               to apply labels (add each needed label; do not remove labels a
+               human already set unless they're clearly wrong).
+            3. Post a single diagnostic comment on the issue (`gh issue comment
+               ${{ github.event.issue.number }} --body-file -`) with:
+                 - A concise restatement of the problem.
+                 - Likely root cause / affected area of the code, citing
+                   specific files and functions/line ranges where possible
+                   (e.g. `collide()` in game.js, the `#board` canvas in
+                   index.html).
+                 - A suggested approach to fix or implement it, at a high
+                   level — enough to guide someone writing the actual code
+                   later, but do not write or modify any code in this run.
+                 - Anything that's unclear or missing from the report that
+                   would help before implementation starts.
+               If this workflow already posted a diagnostic comment on this
+               issue (check existing comments for one from you first), update
+               your understanding but only post a new comment if the edited
+               issue changes the diagnosis — don't spam duplicate comments.
+
+            Do not push commits, open PRs, or modify any files in this run —
+            this is triage/diagnosis only.
+          claude_args: |
+            --allowedTools "Bash(gh issue edit:*),Bash(gh issue comment:*),Bash(gh issue view:*),Bash(gh label list:*),Bash(gh label create:*)"
