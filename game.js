@@ -225,6 +225,7 @@ function drawNext() {
 function endGame() {
   gameOver = true;
   cancelAnimationFrame(animId);
+  animId = 0;
   overlayTitle.textContent = 'GAME OVER';
   overlayScore.textContent = `Puntuación: ${score.toLocaleString()}`;
   overlay.classList.remove('hidden');
@@ -257,6 +258,9 @@ function loop(ts) {
     }
   }
   draw();
+  // lockPiece() puede terminar la partida a mitad del frame: si no se comprueba aquí,
+  // se reagenda un frame que el cancelAnimationFrame de endGame() ya no puede detener
+  if (gameOver || paused) return;
   animId = requestAnimationFrame(loop);
 }
 

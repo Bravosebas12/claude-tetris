@@ -29,9 +29,9 @@ All game state lives in module-level `let` bindings in `game.js` (`board`, `curr
 
 `COLS`, `ROWS`, `BLOCK` in `game.js` and the `width`/`height` attributes of `<canvas id="board">` in `index.html` must be changed together (`COLS*BLOCK` × `ROWS*BLOCK`). Same for `drawNext`'s hardcoded `NB = 30` and the 4×4 centering math against `#next-canvas` (120×120).
 
-### rAF lifecycle quirk
+### rAF lifecycle
 
-`endGame()` and `togglePause()` call `cancelAnimationFrame(animId)`. When game-over is reached from inside `loop()` (gravity → `lockPiece` → `spawn` → `endGame`), the cancel targets the already-fired frame and `loop()` then schedules another one, so the render loop keeps running after game over; input is blocked only by the `gameOver` flag. Reached via keyboard hard-drop, the cancel does take effect. If you touch pause/restart/game-over, check for duplicated rAF chains — `init()` cancels before starting precisely for this reason.
+`endGame()` and `togglePause()` call `cancelAnimationFrame(animId)`, but that cancel is *not* what stops the loop when game-over is reached from inside `loop()` (gravity → `lockPiece` → `spawn` → `endGame`): there `animId` is the frame already firing, so the cancel is a no-op. The actual stop is the `if (gameOver || paused) return;` guard in `loop()`, placed after `draw()` (so the final state still renders) and before the reschedule, because `lockPiece()` can flip the flag mid-frame. Any new code path that ends or suspends the game must set one of those flags — cancelling `animId` alone is not enough. `init()` also cancels before starting, to avoid duplicated rAF chains.
 
 ## Conventions
 
