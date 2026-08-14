@@ -76,7 +76,16 @@ jobs:
 
             ## Diagnóstico
 
-            Escribe el diagnóstico **en español**, empezando el cuerpo con esta línea exacta:
+            Escribe el diagnóstico **en español** y en **Markdown válido de GitHub (GFM)**, de forma que se renderice
+            correctamente en el comentario del issue:
+            - Encabezados con `###`, siempre con una línea en blanco antes y después.
+            - Listas con `-`, y línea en blanco antes del primer elemento.
+            - Rutas, funciones, variables y comandos entre comillas invertidas: `` `game.js:123` ``, `` `init()` ``.
+            - Bloques de código con vallas de tres comillas invertidas y el lenguaje indicado (```js, ```html, ```bash).
+            - Negrita con `**...**`. Nada de HTML crudo salvo el marcador de la primera línea.
+            - Saltos de línea reales, no `\n` literales.
+
+            Empieza el cuerpo con esta línea exacta:
 
             <!-- claude-triage -->
 
