@@ -17,17 +17,18 @@ Verification is manual in a browser: there is no test suite and nothing to build
 
 ## Architecture
 
-All game state lives in module-level `let` bindings in `game.js` (`board`, `current`, `next`, `score`, `lines`, `level`, `paused`, `gameOver`, `dropInterval`, `dropAccum`, `animId`). `init()` resets every one of them and is also the restart handler — any new piece of state must be reset there or it leaks across games.
+All game state lives in module-level `let` bindings in `game.js` (`board`, `current`, `next`, `score`, `lines`, `level`, `paused`, `gameOver`, `dropInterval`, `dropAccum`, `animId`, `pendingSingle`). `init()` resets every one of them and is also the restart handler — any new piece of state must be reset there or it leaks across games.
 
-- **Board**: `ROWS × COLS` array of ints. `0` = empty; `1–7` index into both `COLORS` and `PIECES`, so those two arrays must stay index-aligned (both start with a `null` placeholder at index 0).
-- **Pieces**: square-ish matrices rotated by transpose+row-reverse (`rotateCW`). There is no SRS kick table — `tryRotate` just tries x-offsets `[0,-1,1,-2,2]` and gives up.
+- **Board**: `ROWS × COLS` array of ints. `0` = empty; `1–12` index into both `COLORS` and `PIECES`, so those two arrays must stay index-aligned (both start with a `null` placeholder at index 0).
+- **Pieces**: square-ish matrices rotated by transpose+row-reverse (`rotateCW`). There is no SRS kick table — `tryRotate` just tries x-offsets `[0,-1,1,-2,2]` and gives up. `1–7` are the classic tetrominoes; `8–12` are non-standard (cross/U/Y pentominoes, 1x1, hollow 3x3 donut). `+`, donut and 1x1 are rotation-invariant, so `tryRotate` is a visual no-op for them.
+- **Spawn pool**: `randomPiece()` draws from `RARE_TYPES` with probability `RARE_CHANCE` (0.12) and from `STANDARD_TYPES` otherwise; both build via `makePiece(type)`. `SINGLE_TYPE` (1x1) is *not* in either pool — `clearLines()` sets `pendingSingle` on a 4-line clear and `spawn()` consumes it to force the 1x1 into `next`.
 - **Collision**: `collide(shape, ox, oy)` is the single gate for every movement, rotation, ghost projection, and the spawn-time game-over check. It reads the global `board`.
 - **Loop**: `requestAnimationFrame` accumulator in `loop()`. Gravity fires when `dropAccum >= dropInterval`; drawing happens every frame. Speed: `dropInterval = max(100, 1000 - (level-1)*90)`, level rises every 10 lines, both recomputed inside `clearLines()`.
 - **Rendering**: full clear + redraw each frame in draw order grid → locked board → ghost (`alpha 0.2`) → current piece. `drawNext()` is *not* on the frame loop; it is called only from `spawn()`.
 
 ### Canvas sizing is duplicated
 
-`COLS`, `ROWS`, `BLOCK` in `game.js` and the `width`/`height` attributes of `<canvas id="board">` in `index.html` must be changed together (`COLS*BLOCK` × `ROWS*BLOCK`). Same for `drawNext`'s hardcoded `NB = 30` and the 4×4 centering math against `#next-canvas` (120×120).
+`COLS`, `ROWS`, `BLOCK` in `game.js` and the `width`/`height` attributes of `<canvas id="board">` in `index.html` must be changed together (`COLS*BLOCK` × `ROWS*BLOCK`). Same for `drawNext`'s hardcoded `NB = 30` against `#next-canvas` (120×120): it centres the filled-cell bounding box in `nextCanvas.width / NB` cells, so the canvas must stay at least as wide as the widest piece (4 cells, the `I`).
 
 ### rAF lifecycle
 

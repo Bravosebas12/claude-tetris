@@ -13,6 +13,11 @@ const COLORS = [
   '#e57373', // Z - red
   '#7aa2f7', // J - blue
   '#ffb74d', // L - orange
+  '#f06292', // + cruz - rosa
+  '#4db6ac', // U herradura - turquesa
+  '#9575cd', // Y - lavanda
+  '#ffd700', // 1x1 single - dorado
+  '#90a4ae', // dona / marco hueco - gris azulado
 ];
 
 const PIECES = [
@@ -24,7 +29,19 @@ const PIECES = [
   [[5,5,0],[0,5,5],[0,0,0]],                  // Z
   [[6,0,0],[6,6,6],[0,0,0]],                  // J
   [[0,0,7],[7,7,7],[0,0,0]],                  // L
+  [[0,8,0],[8,8,8],[0,8,0]],                  // + cruz pentominó (5)
+  [[9,0,9],[9,9,9],[0,0,0]],                  // U herradura (5)
+  [[10,0,10],[0,10,0],[0,10,0]],              // Y (4)
+  [[11]],                                      // 1x1 single
+  [[12,12,12],[12,0,12],[12,12,12]],          // dona / marco hueco (8)
 ];
+
+// Las piezas no estándar salen ocasionalmente; el 1x1 no entra en el sorteo,
+// se otorga sólo como recompensa por un Tetris (4 líneas de golpe).
+const STANDARD_TYPES = [1, 2, 3, 4, 5, 6, 7];
+const RARE_TYPES = [8, 9, 10, 12];
+const SINGLE_TYPE = 11;
+const RARE_CHANCE = 0.12;
 
 const LINE_SCORES = [0, 100, 300, 500, 800];
 
@@ -44,16 +61,21 @@ const restartBtn = document.getElementById('restart-btn');
 const themeSwitch = document.getElementById('theme-switch');
 
 let board, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId;
+let pendingSingle;
 let theme;
 
 function createBoard() {
   return Array.from({ length: ROWS }, () => new Array(COLS).fill(0));
 }
 
-function randomPiece() {
-  const type = Math.floor(Math.random() * 7) + 1;
+function makePiece(type) {
   const shape = PIECES[type].map(row => [...row]);
   return { type, shape, x: Math.floor(COLS / 2) - Math.floor(shape[0].length / 2), y: 0 };
+}
+
+function randomPiece() {
+  const pool = Math.random() < RARE_CHANCE ? RARE_TYPES : STANDARD_TYPES;
+  return makePiece(pool[Math.floor(Math.random() * pool.length)]);
 }
 
 function collide(shape, ox, oy) {
@@ -108,6 +130,8 @@ function clearLines() {
     }
   }
   if (cleared) {
+    // Tetris: la siguiente pieza en NEXT será el 1x1 como recompensa
+    if (cleared === 4) pendingSingle = true;
     lines += cleared;
     score += (LINE_SCORES[cleared] || 0) * level;
     level = Math.floor(lines / 10) + 1;
@@ -147,7 +171,12 @@ function lockPiece() {
 
 function spawn() {
   current = next;
-  next = randomPiece();
+  if (pendingSingle) {
+    next = makePiece(SINGLE_TYPE);
+    pendingSingle = false;
+  } else {
+    next = randomPiece();
+  }
   if (collide(current.shape, current.x, current.y)) {
     endGame();
   }
@@ -215,8 +244,20 @@ function drawNext() {
   const NB = 30;
   nextCtx.clearRect(0, 0, nextCanvas.width, nextCanvas.height);
   const shape = next.shape;
-  const offX = Math.floor((4 - shape[0].length) / 2);
-  const offY = Math.floor((4 - shape.length) / 2);
+  // se centra el bounding box de celdas llenas, no la matriz: las matrices
+  // tienen filas/columnas vacías (T, U, Y...) y descentrarían el dibujo
+  let minR = Infinity, maxR = -Infinity, minC = Infinity, maxC = -Infinity;
+  for (let r = 0; r < shape.length; r++)
+    for (let c = 0; c < shape[r].length; c++)
+      if (shape[r][c]) {
+        if (r < minR) minR = r;
+        if (r > maxR) maxR = r;
+        if (c < minC) minC = c;
+        if (c > maxC) maxC = c;
+      }
+  // offsets fraccionarios: drawBlock sólo hace x * size, así que admite decimales
+  const offX = (nextCanvas.width / NB - (maxC - minC + 1)) / 2 - minC;
+  const offY = (nextCanvas.height / NB - (maxR - minR + 1)) / 2 - minR;
   for (let r = 0; r < shape.length; r++)
     for (let c = 0; c < shape[r].length; c++)
       drawBlock(nextCtx, offX + c, offY + r, shape[r][c], NB);
@@ -283,6 +324,7 @@ function init() {
   gameOver = false;
   dropInterval = 1000;
   dropAccum = 0;
+  pendingSingle = false;
   lastTime = performance.now();
   next = randomPiece();
   spawn();
