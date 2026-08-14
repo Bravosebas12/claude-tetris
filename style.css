@@ -160,3 +160,114 @@ kbd {
 #restart-btn:hover {
   background: #9bbdff;
 }
+
+/* ---- Records ---- */
+.records {
+  font-size: 12px;
+}
+
+#records-list {
+  list-style: decimal inside;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 12px;
+  color: #ccc;
+}
+
+#records-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+#records-list li span.rec-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 70px;
+}
+
+#records-list li.current {
+  color: #ffd54f;
+  font-weight: 700;
+}
+
+#records-list .empty {
+  color: #555570;
+  font-style: italic;
+}
+
+.record-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 6px;
+  color: #888;
+  font-size: 11px;
+}
+
+.record-stats b {
+  color: #7aa2f7;
+}
+
+#reset-records-btn {
+  margin-top: 8px;
+  background: transparent;
+  color: #888;
+  border: 1px solid #3a3a5a;
+  border-radius: 4px;
+  padding: 5px 10px;
+  font-size: 10px;
+  cursor: pointer;
+  letter-spacing: 0.5px;
+}
+
+#reset-records-btn:hover {
+  border-color: #e57373;
+  color: #e57373;
+}
+
+/* ---- Name entry (game over) ---- */
+#overlay-name-entry {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+}
+
+#overlay-name-entry.hidden {
+  display: none;
+}
+
+.new-record {
+  font-size: 12px;
+  color: #ffd54f;
+}
+
+#name-input {
+  background: #1a1a25;
+  border: 1px solid #3a3a5a;
+  border-radius: 4px;
+  color: #e0e0e0;
+  padding: 6px 10px;
+  font-size: 14px;
+  text-align: center;
+  width: 160px;
+}
+
+#save-score-btn {
+  background: #ffd54f;
+  color: #0f0f17;
+  border: none;
+  border-radius: 6px;
+  padding: 8px 24px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+#save-score-btn:hover {
+  background: #ffe082;
+}
