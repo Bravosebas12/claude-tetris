@@ -48,6 +48,9 @@ jobs:
                - Causa raíz probable o área del código implicada (archivo/función).
                - Enfoque sugerido para implementar la solución.
                - Preguntas abiertas o información faltante, si las hay.
+               El comentario debe estar en formato Markdown válido que GitHub pueda renderizar
+               (encabezados con `#`, listas con `-`, `` `código` `` en línea para nombres de
+               archivo/función, y bloques ``` ``` para fragmentos de código cuando aplique).
             5. Si el issue ya tiene un comentario de diagnóstico previo de Claude y solo cambió
                una edición menor, puedes actualizar tu análisis en un nuevo comentario en vez
                de repetir uno idéntico.
