@@ -33,6 +33,51 @@ const HOLE = 9;
 
 const LINE_SCORES = [0, 100, 300, 500, 800];
 
+const SKINS = {
+  retro: {
+    label: 'Retro',
+    colors: [null, '#4dd0e1', '#ffd54f', '#ba68c8', '#81c784', '#e57373', '#7986cb', '#ffb74d', '#9e9e9e'],
+    board: '#1a1a25',
+    grid: '#22222e',
+    hole: '#333',
+    glow: 0,
+    radius: 0,
+    pixel: false,
+  },
+  neon: {
+    label: 'Neon',
+    colors: [null, '#00fff9', '#faff00', '#ff00f7', '#00ff66', '#ff2d55', '#5c6bff', '#ff9500', '#e0e0e0'],
+    board: '#020204',
+    grid: '#0a0a12',
+    hole: '#00fff9',
+    glow: 16,
+    radius: 0,
+    pixel: false,
+  },
+  pastel: {
+    label: 'Pastel',
+    colors: [null, '#a7d8f0', '#fff3b0', '#d9b8f5', '#b8f2d1', '#f7b8c4', '#c3c9ff', '#ffd6a5', '#d6d6d6'],
+    board: '#fdf6f9',
+    grid: '#eee2ea',
+    hole: '#c9c9c9',
+    glow: 0,
+    radius: 8,
+    pixel: false,
+  },
+  pixel: {
+    label: 'Pixel Art',
+    colors: [null, '#4dd0e1', '#ffd54f', '#ba68c8', '#81c784', '#e57373', '#7986cb', '#ffb74d', '#9e9e9e'],
+    board: '#1a1a25',
+    grid: '#22222e',
+    hole: '#333',
+    glow: 0,
+    radius: 0,
+    pixel: true,
+  },
+};
+
+let currentSkin = SKINS.retro;
+
 const canvas = document.getElementById('board');
 const ctx = canvas.getContext('2d');
 const nextCanvas = document.getElementById('next-canvas');
@@ -44,6 +89,7 @@ const overlay = document.getElementById('overlay');
 const overlayTitle = document.getElementById('overlay-title');
 const overlayScore = document.getElementById('overlay-score');
 const restartBtn = document.getElementById('restart-btn');
+const skinSelect = document.getElementById('skin-select');
 
 const pauseOverlay = document.getElementById('pause-overlay');
 const pauseMain = document.getElementById('pause-main');
@@ -180,30 +226,72 @@ function updateHUD() {
   levelEl.textContent = level;
 }
 
+function roundRectPath(context, x, y, w, h, r) {
+  context.beginPath();
+  context.moveTo(x + r, y);
+  context.arcTo(x + w, y, x + w, y + h, r);
+  context.arcTo(x + w, y + h, x, y + h, r);
+  context.arcTo(x, y + h, x, y, r);
+  context.arcTo(x, y, x + w, y, r);
+  context.closePath();
+}
+
 function drawBlock(context, x, y, colorIndex, size, alpha) {
   if (!colorIndex || colorIndex === HOLE) return;
-  const color = COLORS[colorIndex];
+  const skin = currentSkin;
+  const color = skin.colors[colorIndex];
+  const bx = x * size + 1;
+  const by = y * size + 1;
+  const bw = size - 2;
+  const bh = size - 2;
+
   context.globalAlpha = alpha ?? 1;
+  context.shadowBlur = skin.glow;
+  context.shadowColor = skin.glow ? color : 'transparent';
   context.fillStyle = color;
-  context.fillRect(x * size + 1, y * size + 1, size - 2, size - 2);
-  // highlight
-  context.fillStyle = 'rgba(255,255,255,0.12)';
-  context.fillRect(x * size + 1, y * size + 1, size - 2, 4);
+
+  if (skin.radius) {
+    roundRectPath(context, bx, by, bw, bh, skin.radius);
+    context.fill();
+  } else {
+    context.fillRect(bx, by, bw, bh);
+  }
+
+  context.shadowBlur = 0;
+
+  if (skin.pixel) {
+    // pixel-art texture: 2x2 checker pattern of light/dark dots
+    const step = size / 4;
+    context.fillStyle = 'rgba(0,0,0,0.15)';
+    for (let py = 0; py < 4; py++)
+      for (let px = 0; px < 4; px++)
+        if ((px + py) % 2 === 0)
+          context.fillRect(bx + px * step, by + py * step, step, step);
+  } else {
+    // highlight
+    context.fillStyle = 'rgba(255,255,255,0.12)';
+    context.fillRect(bx, by, bw, 4);
+  }
+
   context.globalAlpha = 1;
 }
 
 function drawHole(context, x, y, size, alpha) {
+  const skin = currentSkin;
   context.globalAlpha = alpha ?? 1;
-  context.strokeStyle = '#333';
+  context.strokeStyle = skin.hole;
+  context.shadowBlur = skin.glow;
+  context.shadowColor = skin.glow ? skin.hole : 'transparent';
   context.lineWidth = 2;
   context.beginPath();
   context.arc(x * size + size / 2, y * size + size / 2, size * 0.32, 0, Math.PI * 2);
   context.stroke();
+  context.shadowBlur = 0;
   context.globalAlpha = 1;
 }
 
 function drawGrid() {
-  ctx.strokeStyle = '#22222e';
+  ctx.strokeStyle = currentSkin.grid;
   ctx.lineWidth = 0.5;
   for (let c = 1; c < COLS; c++) {
     ctx.beginPath();
@@ -307,6 +395,21 @@ function loop(ts) {
   draw();
   animId = requestAnimationFrame(loop);
 }
+
+function applySkin(name) {
+  if (!SKINS[name]) name = 'retro';
+  currentSkin = SKINS[name];
+  document.body.dataset.skin = name;
+  skinSelect.value = name;
+  localStorage.setItem('tetris-skin', name);
+  if (board) {
+    draw();
+    if (next) drawNext();
+  }
+}
+
+skinSelect.addEventListener('change', () => applySkin(skinSelect.value));
+applySkin(localStorage.getItem('tetris-skin') || 'retro');
 
 function init() {
   board = createBoard();
