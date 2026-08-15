@@ -1,0 +1,88 @@
+name: Claude Issue Triage
+
+on:
+  issues:
+    types: [opened, edited, reopened]
+
+concurrency:
+  group: issue-triage-${{ github.event.issue.number }}
+  cancel-in-progress: true
+
+jobs:
+  triage:
+    if: |
+      github.event.sender.type != 'Bot' &&
+      !contains(github.event.issue.title, '[skip-claude]')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      id-token: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Run Claude Issue Triage
+        id: claude-triage
+        uses: anthropics/claude-code-action@v1
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+
+          claude_args: '--allowed-tools "Bash(gh issue view:*),Bash(gh issue edit:*),Bash(gh issue comment:*),Bash(gh label list:*),Bash(gh api:*),Read,Grep,Glob"'
+
+          prompt: |
+            Analizá el issue #${{ github.event.issue.number }} del repo ${{ github.repository }} (Tetris vanilla JS/HTML5 Canvas, ver CLAUDE.md para arquitectura) y hacé triage automático.
+
+            Todo comentario que publiques debe estar en formato Markdown válido, interpretable por GitHub (encabezados, listas, checkboxes, bloques de código con backticks, etc.).
+
+            Pasos:
+
+            1. Leé el issue completo: `gh issue view ${{ github.event.issue.number }} --repo ${{ github.repository }} --json title,body,labels,comments`.
+
+            2. Leé los labels disponibles: `gh label list --repo ${{ github.repository }}`. Elegí SOLO entre los labels existentes del repo (bug, documentation, duplicate, enhancement, good first issue, help wanted, invalid, question, wontfix). NUNCA crees labels nuevos. Podés aplicar más de uno si corresponde.
+
+            3. Investigá el código relevante con Read/Grep/Glob sobre game.js, index.html, style.css y CLAUDE.md para entender la arquitectura (board matrix, collide, tryRotate, clearLines, ghostY, LINE_SCORES, game loop) y localizar la función/archivo afectado por lo que reporta el issue.
+
+            4. Aplicá los labels elegidos con `gh issue edit ${{ github.event.issue.number }} --repo ${{ github.repository }} --add-label "label1,label2"`.
+
+            5. Publicá o actualizá un comentario de diagnóstico:
+               - Primero buscá si ya existe un comentario tuyo anterior en este issue que contenga el marcador `<!-- claude-triage -->` (usando `gh api repos/${{ github.repository }}/issues/${{ github.event.issue.number }}/comments`).
+               - Si existe, actualizalo con `gh api --method PATCH repos/${{ github.repository }}/issues/comments/{comment_id} -f body='...'`.
+               - Si no existe, creá uno nuevo con `gh issue comment ${{ github.event.issue.number }} --repo ${{ github.repository }} --body '...'`.
+               - Esto evita duplicar comentarios cuando el issue se edita.
+
+            El comentario debe seguir EXACTAMENTE este formato (texto en español, identificadores de código en inglés, sin inventar información que no surja del issue o del código):
+
+            ```
+            <!-- claude-triage -->
+            ## 🔍 Diagnóstico automático
+
+            **Tipo:** (bug | enhancement | question | ...)
+            **Labels aplicados:** `label1`, `label2`
+
+            ### Resumen
+            (1-3 frases: qué reporta el issue)
+
+            ### Área del código afectada
+            (archivos y funciones concretas, ej. `game.js:120` — `tryRotate()`)
+
+            ### Causa probable
+            (hipótesis técnica basada en la lectura del código, o "no determinable" + qué información falta)
+
+            ### Plan de solución propuesto
+            1. ...
+            2. ...
+
+            ### Criterios de aceptación
+            - [ ] ...
+
+            ### Información faltante
+            (solo si aplica: pasos de reproducción, navegador, etc. Omitir esta sección si no aplica)
+
+            ---
+            *Análisis automático. Comentá `@claude implementá esta solución` para que se genere el PR.*
+            ```
