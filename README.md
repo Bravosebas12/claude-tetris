@@ -13,6 +13,7 @@ Implementación del clásico **Tetris** en JavaScript vanilla, usando HTML5 Canv
 - [Tetris](#tetris)
   - [Tabla de contenidos](#tabla-de-contenidos)
   - [Qué hace el proyecto](#qué-hace-el-proyecto)
+  - [Power-ups](#power-ups)
   - [Cómo ejecutar el juego](#cómo-ejecutar-el-juego)
     - [Opción 1: abrir el archivo directamente](#opción-1-abrir-el-archivo-directamente)
     - [Opción 2: servidor local (recomendado)](#opción-2-servidor-local-recomendado)
@@ -42,6 +43,34 @@ Es una versión jugable del Tetris clásico con todas las mecánicas que esperar
 - **Sistema de puntuación** clásico de Tetris (100 / 300 / 500 / 800 multiplicado por nivel).
 - **Niveles** que aumentan cada 10 líneas y aceleran la caída.
 - **Pausa** y **Game Over** con opción de reinicio.
+- **Power-ups**: cada 5 líneas aparece una pieza especial con un efecto.
+
+---
+
+## Power-ups
+
+Cada **5 líneas** limpiadas, la siguiente pieza en la vista previa es una **pieza especial** de una sola celda con un icono. No se fija al tablero: al aterrizar (o con hard drop) detona su efecto en la casilla donde cayó.
+
+| Icono | Power-up | Efecto |
+|-------|----------|--------|
+| 💣 | **Bomba** | Destruye el área 3×3 alrededor del punto de impacto. |
+| ⚡ | **Rayo** | Limpia por completo la fila y la columna del impacto. |
+| 🎨 | **Tinte** | Convierte todos los bloques del color más abundante en **comodines** (bloques arcoíris). |
+| 🌀 | **Gravedad** | Compacta el tablero: todos los bloques caen y desaparecen los huecos. |
+| ❄️ | **Congelar** | Detiene la caída automática durante 5 segundos (puedes seguir moviendo y rotando). |
+
+**Comodines:** los bloques arcoíris creados por el Tinte cuentan como bloques normales para completar líneas, pero **detonan en cuanto se limpia cualquier línea**, desaparecen del tablero, dan puntos extra y el tablero se compacta con gravedad. Sirven para provocar reacciones en cadena.
+
+**Puntuación de los power-ups** (todo multiplicado por el nivel):
+
+- Bomba: 15 por bloque destruido
+- Rayo: 20 por bloque destruido
+- Tinte: 5 por bloque teñido
+- Gravedad: 10 por bloque desplazado
+- Congelar: 50 fijos
+- Comodín detonado: 20 por bloque
+
+El panel lateral muestra cuántas líneas faltan para el próximo power-up, avisa cuando hay uno listo en NEXT y muestra la cuenta atrás mientras el tablero está congelado.
 
 ---
 

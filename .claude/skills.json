@@ -1,0 +1,8 @@
+{
+  "skills": [
+    {
+      "name": "weather-tijuana",
+      "path": "./skills/weather-tijuana.md"
+    }
+  ]
+}
