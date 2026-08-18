@@ -229,3 +229,38 @@ kbd {
 #restart-btn:hover {
   background: var(--restart-hover);
 }
+
+/* ---------- Power-ups ---------- */
+.power-status {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--controls-color);
+  margin-top: 4px;
+}
+
+.power-status.ready {
+  color: var(--value-color);
+  animation: pu-pulse 1s ease-in-out infinite;
+}
+
+.power-status.active {
+  color: #40c4ff;
+}
+
+@keyframes pu-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+
+.powerup-legend {
+  list-style: none;
+  margin-top: 8px;
+  font-size: 11px;
+  line-height: 1.7;
+  color: var(--controls-color);
+}
+
+.powerup-legend .pu-icon {
+  display: inline-block;
+  width: 16px;
+}
