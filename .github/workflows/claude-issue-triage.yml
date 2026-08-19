@@ -1,0 +1,56 @@
+name: Claude Issue Triage
+
+on:
+  issues:
+    types: [opened, edited]
+
+jobs:
+  triage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+      id-token: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Run Claude Code for Issue Triage
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          allowed_non_write_users: "*"
+          claude_args: |
+            --allowedTools "Bash(gh label list:*),Bash(gh issue view:*),Bash(gh issue edit:*),Bash(gh issue comment:*)"
+          prompt: |
+            Analiza el issue #${{ github.event.issue.number }} del repo ${{ github.repository }}.
+
+            1. Ejecuta `gh label list --repo ${{ github.repository }}` para ver las labels
+               disponibles. Usa EXCLUSIVAMENTE labels de esa lista — no crees labels nuevas.
+            2. Ejecuta `gh issue view ${{ github.repository }}#${{ github.event.issue.number }}`
+               para leer el título, cuerpo y labels actuales del issue.
+            3. Decide qué labels aplican (tipo: bug/enhancement/question/documentation/
+               accessibility, y triage: good first issue/help wanted/duplicate/invalid/wontfix
+               si corresponde) y ajusta las labels del issue con
+               `gh issue edit <numero> --add-label "..." --remove-label "..."` para que
+               reflejen el estado actual del issue (añade las que falten, quita las que ya
+               no apliquen; si el issue fue editado y cambió de naturaleza, corrige en consecuencia).
+            4. Publica UN comentario con `gh issue comment <numero> --body "..."` que contenga
+               un diagnóstico técnico del problema, usando el contexto de CLAUDE.md
+               (arquitectura de game.js: board/piezas/colisión/rotación/locking pipeline/
+               game loop/scoring/rendering/input) cuando aplique:
+               - Resumen del problema en 1-2 frases.
+               - Causa raíz probable o área del código implicada (archivo/función).
+               - Enfoque sugerido para implementar la solución.
+               - Preguntas abiertas o información faltante, si las hay.
+               El comentario debe estar en formato Markdown válido que GitHub pueda renderizar
+               (encabezados con `#`, listas con `-`, `` `código` `` en línea para nombres de
+               archivo/función, y bloques ``` ``` para fragmentos de código cuando aplique).
+            5. Si el issue ya tiene un comentario de diagnóstico previo de Claude y solo cambió
+               una edición menor, puedes actualizar tu análisis en un nuevo comentario en vez
+               de repetir uno idéntico.
