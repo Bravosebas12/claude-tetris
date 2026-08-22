@@ -84,7 +84,10 @@ jobs:
             - Si existe, actualízalo con `gh api -X PATCH repos/${{ github.repository }}/issues/comments/<id> -f body='...'`.
             - Si no existe, créalo con `gh issue comment ${{ github.event.issue.number }} --body '...'`.
 
-            El comentario debe empezar con la línea `<!-- claude-issue-diagnosis -->` (oculta en el render de
+            El comentario debe estar escrito en formato Markdown válido para que se renderice correctamente en
+            la interfaz de GitHub (encabezados, negritas, listas, etc. — nada de texto plano ni de otro formato).
+
+            Debe empezar con la línea `<!-- claude-issue-diagnosis -->` (oculta en el render de
             GitHub) seguida de un diagnóstico en español, en Markdown, con esta estructura:
 
             ```
