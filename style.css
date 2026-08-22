@@ -204,7 +204,7 @@ kbd {
   border-radius: 4px;
 }
 
-.overlay.hidden {
+.hidden {
   display: none;
 }
 
@@ -229,11 +229,11 @@ kbd {
   color: var(--accent);
 }
 
-#restart-btn {
+.btn {
   margin-top: 8px;
-  background: var(--accent);
-  color: var(--accent-contrast);
-  border: none;
+  background: var(--control-bg);
+  color: var(--text);
+  border: 1px solid var(--control-border);
   border-radius: 6px;
   padding: 10px 28px;
   font-size: 14px;
@@ -243,6 +243,57 @@ kbd {
   transition: background 0.15s;
 }
 
-#restart-btn:hover {
+.btn:hover {
+  background: var(--control-border);
+}
+
+.btn-accent {
+  background: var(--accent);
+  color: var(--accent-contrast);
+  border: none;
+}
+
+.btn-accent:hover {
   background: #9bbdff;
+}
+
+.overlay-actions {
+  display: flex;
+  gap: 10px;
+}
+
+#mode-select-title {
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: 6px;
+  color: var(--accent);
+}
+
+.mode-select-subtitle {
+  font-size: 12px;
+  color: var(--muted-label);
+  letter-spacing: 1px;
+}
+
+/* ---- Panel de desafío ---- */
+.challenge-objective {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.progress-bar {
+  width: 100%;
+  height: 6px;
+  background: var(--control-bg);
+  border: 1px solid var(--control-border);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  width: 0%;
+  background: var(--accent);
+  transition: width 0.2s;
 }
