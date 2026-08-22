@@ -1,0 +1,110 @@
+name: Claude Issue Triage
+
+on:
+  issues:
+    types: [opened, edited]
+
+concurrency:
+  group: claude-issue-triage-${{ github.event.issue.number }}
+  cancel-in-progress: true
+
+jobs:
+  triage:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      id-token: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Run Claude Issue Triage
+        id: claude-triage
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+
+          claude_args: '--allowed-tools "Bash(gh label create:*),Bash(gh label list:*),Bash(gh issue edit:*),Bash(gh issue comment:*),Bash(gh api:*)"'
+
+          prompt: |
+            Estás analizando el issue #${{ github.event.issue.number }} del repositorio ${{ github.repository }}
+            (un juego de Tetris en JavaScript vanilla — revisa CLAUDE.md para entender la arquitectura de game.js
+            antes de diagnosticar: modelo del tablero, piezas/rotación/colisión, game loop, locking/line clears,
+            scoring/leveling, rendering, input).
+
+            Tu tarea tiene tres partes. Hazlas en orden:
+
+            ## 1. Asegurar que existan las labels de la taxonomía
+
+            Verifica con `gh label list` cuáles de estas labels ya existen en el repo y crea (con `--force`,
+            que no falla si ya existe) las que falten:
+
+            Tipo:
+            - bug (#d73a4a)
+            - enhancement (#a2eeef)
+            - question (#d876e3)
+            - documentation (#0075ca)
+
+            Área:
+            - area:rendering (#fbca04) — draw(), drawNext(), canvas
+            - area:input (#f9d0c4) — listener de teclado, controles
+            - area:collision-rotation (#c5def5) — collide(), tryRotate(), PIECES
+            - area:scoring-leveling (#bfd4f2) — LINE_SCORES, nivel, dropInterval
+            - area:game-loop (#bfdadc) — loop(), lockPiece(), merge(), clearLines(), spawn()
+            - area:ui-style (#e4e669) — index.html/style.css, HUD, overlay
+
+            Prioridad:
+            - priority:high (#b60205)
+            - priority:medium (#fbca04)
+            - priority:low (#0e8a16)
+
+            Ejemplo: `gh label create "bug" --color "d73a4a" --force`
+
+            ## 2. Analizar el issue y asignar labels
+
+            Lee el título y cuerpo del issue #${{ github.event.issue.number }}. Analízalo contra la arquitectura
+            de game.js descrita en CLAUDE.md y selecciona:
+            - Exactamente 1 label de tipo (bug/enhancement/question/documentation)
+            - 1 o más labels de área, la(s) que mejor correspondan
+            - Exactamente 1 label de prioridad, según impacto/urgencia percibidos
+
+            Aplícalas con `gh issue edit ${{ github.event.issue.number }} --add-label "label1,label2,..."`.
+            No elimines labels existentes que no formen parte de esta taxonomía (por ejemplo, labels que un
+            humano haya añadido manualmente).
+
+            ## 3. Publicar o actualizar el comentario de diagnóstico
+
+            Busca si ya existe un comentario tuyo anterior en este issue que contenga el marcador oculto
+            `<!-- claude-issue-diagnosis -->` (usa `gh api repos/${{ github.repository }}/issues/${{ github.event.issue.number }}/comments`
+            para listar los comentarios y revisar sus cuerpos).
+
+            - Si existe, actualízalo con `gh api -X PATCH repos/${{ github.repository }}/issues/comments/<id> -f body='...'`.
+            - Si no existe, créalo con `gh issue comment ${{ github.event.issue.number }} --body '...'`.
+
+            El comentario debe estar escrito en formato Markdown válido para que se renderice correctamente en
+            la interfaz de GitHub (encabezados, negritas, listas, etc. — nada de texto plano ni de otro formato).
+
+            Debe empezar con la línea `<!-- claude-issue-diagnosis -->` (oculta en el render de
+            GitHub) seguida de un diagnóstico en español, en Markdown, con esta estructura:
+
+            ```
+            ## 🔍 Diagnóstico automático
+
+            **Resumen del problema:** ...
+
+            **Causa probable:** ...
+
+            **Área(s) de código afectada(s):** archivo(s) y función(es) específicas de game.js/index.html/style.css
+            involucradas, referenciando la arquitectura de CLAUDE.md.
+
+            **Labels asignadas:** lista de labels aplicadas y por qué.
+
+            **Próximos pasos sugeridos:** lista breve de pasos para implementar la solución (sin escribir
+            código todavía — esto es solo diagnóstico, no la implementación).
+            ```
+
+            No modifiques el título ni el cuerpo del issue. No hagas cambios de código ni abras pull requests
+            desde este workflow — tu única salida es labels + este comentario de diagnóstico.
