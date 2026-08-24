@@ -1,0 +1,38 @@
+name: Claude Issue Triage
+
+on:
+  issues:
+    types: [opened, edited]
+
+jobs:
+  triage-issue:
+    # Only run for the main issue body/title being created or edited, not for
+    # other "edited" sub-events, and never for edits made by this workflow's
+    # own bot actor (avoids feedback loops).
+    if: |
+      github.actor != 'github-actions[bot]' &&
+      (github.event.action == 'opened' ||
+        (github.event.action == 'edited' &&
+          (github.event.changes.title != null || github.event.changes.body != null)))
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+      id-token: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Run Claude Code for Issue Triage
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          allowed_non_write_users: "*" # issues can be opened by users without write access
+          prompt: "/triage-issue REPO: ${{ github.repository }} ISSUE_NUMBER: ${{ github.event.issue.number }}"
+          # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
+          # or https://code.claude.com/docs/en/cli-reference for available options
