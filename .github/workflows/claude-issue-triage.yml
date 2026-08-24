@@ -1,0 +1,71 @@
+name: Claude Issue Triage
+
+on:
+  issues:
+    types: [opened, edited]
+
+jobs:
+  triage:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      id-token: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Run Claude Issue Triage
+        id: claude-triage
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+
+          # Allow Claude to inspect/create labels and apply them to this issue.
+          claude_args: '--allowed-tools "Bash(gh label list:*),Bash(gh label create:*),Bash(gh issue edit:*)"'
+
+          prompt: |
+            You are triaging GitHub issue #${{ github.event.issue.number }} in this repository
+            (a vanilla JS Tetris implementation — see CLAUDE.md for the full architecture:
+            board model, PIECES/rotateCW, collide, tryRotate wall kicks, the loop/dropAccum
+            game loop, lockPiece/merge/clearLines, spawn, scoring/leveling, the ghostY ghost
+            piece, and draw/drawNext rendering).
+
+            Issue title: ${{ github.event.issue.title }}
+            Issue body:
+            ${{ github.event.issue.body }}
+
+            Do the following:
+
+            1. Run `gh label list` to see which labels already exist in this repo. Create any
+               of the following project labels that are missing, using
+               `gh label create <name> --color <hex> --description "<description>"`:
+                 - bug                 | d73a4a | Something isn't working
+                 - enhancement         | a2eeef | New feature or request
+                 - question            | d876e3 | Further information is requested
+                 - area:rendering      | 1d76db | Canvas / draw / drawNext / ghost piece
+                 - area:input          | 0e8a16 | Keyboard controls / rotation
+                 - area:scoring        | fbca04 | Score, levels, dropInterval
+                 - area:performance    | 5319e7 | Game loop / requestAnimationFrame performance
+                 - needs-more-info     | cfd3d7 | Not enough information to diagnose
+
+            2. Based on the issue title and body, decide which of the labels above apply
+               (an issue can have more than one, e.g. `bug` + `area:input`). Apply them with
+               `gh issue edit ${{ github.event.issue.number }} --add-label "label1,label2"`.
+               Do not remove existing labels on the issue unless they are clearly wrong.
+
+            3. Reply with a technical diagnosis (this response is posted as a comment on the
+               issue automatically) covering:
+                 - A short summary of the reported problem.
+                 - A root-cause hypothesis, referencing the specific game.js functions/concepts
+                   from CLAUDE.md's architecture that are likely involved.
+                 - The files/functions that most likely need to change.
+                 - A suggested approach for fixing it (describe the approach, do not implement
+                   the fix).
+               If the issue does not contain enough information to diagnose it (e.g. a bug
+               report missing reproduction steps), say so explicitly, list the specific
+               clarifying questions needed, apply the `needs-more-info` label instead of
+               guessing at a diagnosis, and skip the root-cause/fix sections.
