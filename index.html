@@ -66,6 +66,15 @@
       <div class="overlay-box">
         <p id="overlay-title">GAME OVER</p>
         <p id="overlay-score"></p>
+        <div id="save-score-section" class="save-score hidden">
+          <input type="text" id="save-score-input" class="text-input" placeholder="Tu nombre" maxlength="12" autocomplete="off" />
+          <button id="save-score-btn" class="btn btn-accent">Guardar</button>
+        </div>
+        <div id="overlay-highscores" class="highscores hidden">
+          <span class="label">TOP 5</span>
+          <ol id="overlay-highscores-list" class="highscores-list"></ol>
+          <p id="overlay-stats" class="highscores-stats"></p>
+        </div>
         <div class="overlay-actions">
           <button id="overlay-secondary-btn" class="btn hidden">Continuar</button>
           <button id="restart-btn" class="btn btn-accent">Reiniciar</button>
@@ -80,6 +89,12 @@
         <div class="overlay-actions">
           <button id="mode-classic-btn" class="btn">Modo Clásico</button>
           <button id="mode-challenge-btn" class="btn btn-accent">Modo Desafío</button>
+        </div>
+        <div id="mode-select-highscores" class="highscores">
+          <span class="label">TOP 5</span>
+          <ol id="mode-select-highscores-list" class="highscores-list"></ol>
+          <p id="mode-select-stats" class="highscores-stats"></p>
+          <button id="reset-highscores-btn" class="btn btn-small">Resetear records</button>
         </div>
       </div>
     </div>
