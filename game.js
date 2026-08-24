@@ -52,6 +52,7 @@ const overlayScore = document.getElementById('overlay-score');
 const restartBtn = document.getElementById('restart-btn');
 const overlaySecondaryBtn = document.getElementById('overlay-secondary-btn');
 const themeSwitch = document.getElementById('theme-switch');
+const skinSelect = document.getElementById('skin-select');
 const modeSelect = document.getElementById('mode-select');
 const modeClassicBtn = document.getElementById('mode-classic-btn');
 const modeChallengeBtn = document.getElementById('mode-challenge-btn');
@@ -66,6 +67,19 @@ const THEME_COLORS = {
   dark: { grid: '#22222e', highlight: 'rgba(255,255,255,0.12)' },
   light: { grid: '#d5d8ea', highlight: 'rgba(255,255,255,0.55)' },
 };
+
+const SKIN_KEY = 'tetris-skin';
+const PASTEL_COLORS = [
+  null,
+  '#a8e6f0', // I - cian pastel
+  '#fff3b8', // O - amarillo pastel
+  '#e0b8ea', // T - lila pastel
+  '#c3e8c0', // S - verde pastel
+  '#f4b8b8', // Z - rojo pastel
+  '#c3ddf7', // J - azul pastel
+  '#ffd6ae', // L - naranja pastel
+  '#b8b8c8', // obstáculos
+];
 
 let board, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId;
 
@@ -229,15 +243,79 @@ function getTheme() {
   return document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
 }
 
+function getSkin() {
+  return document.documentElement.getAttribute('data-skin') || 'retro';
+}
+
+function shadeColor(hex, percent) {
+  const num = parseInt(hex.slice(1), 16);
+  const amount = Math.round(255 * (percent / 100));
+  let r = ((num >> 16) & 0xff) + amount;
+  let g = ((num >> 8) & 0xff) + amount;
+  let b = (num & 0xff) + amount;
+  r = Math.max(0, Math.min(255, r));
+  g = Math.max(0, Math.min(255, g));
+  b = Math.max(0, Math.min(255, b));
+  return `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}`;
+}
+
+function drawPixelTexture(context, px, py, s, color) {
+  const dark = shadeColor(color, -22);
+  const light = shadeColor(color, 18);
+  const n = 4;
+  const cell = s / n;
+  for (let i = 0; i < n; i++) {
+    for (let j = 0; j < n; j++) {
+      if ((i + j) % 2 === 0) {
+        context.fillStyle = (i + j) % 4 === 0 ? light : dark;
+        context.fillRect(px + i * cell, py + j * cell, cell, cell);
+      }
+    }
+  }
+}
+
 function drawBlock(context, x, y, colorIndex, size, alpha) {
   if (!colorIndex) return;
-  const color = COLORS[colorIndex];
+  const skin = getSkin();
+  const palette = skin === 'pastel' ? PASTEL_COLORS : COLORS;
+  const color = palette[colorIndex];
+  const px = x * size + 1;
+  const py = y * size + 1;
+  const s = size - 2;
+
   context.globalAlpha = alpha ?? 1;
+
+  if (skin === 'neon') {
+    context.shadowBlur = 12;
+    context.shadowColor = color;
+  }
+
   context.fillStyle = color;
-  context.fillRect(x * size + 1, y * size + 1, size - 2, size - 2);
+  if (skin === 'pastel' && context.roundRect) {
+    context.beginPath();
+    context.roundRect(px, py, s, s, 6);
+    context.fill();
+  } else {
+    context.fillRect(px, py, s, s);
+  }
+
+  // asegura que el brillo neón no se filtre a la cuadrícula ni a otro contenido
+  context.shadowBlur = 0;
+
+  if (skin === 'pixel') {
+    drawPixelTexture(context, px, py, s, color);
+  }
+
   // highlight
   context.fillStyle = THEME_COLORS[getTheme()].highlight;
-  context.fillRect(x * size + 1, y * size + 1, size - 2, 4);
+  if (skin === 'pastel' && context.roundRect) {
+    context.beginPath();
+    context.roundRect(px, py, s, Math.min(4, s), [6, 6, 0, 0]);
+    context.fill();
+  } else {
+    context.fillRect(px, py, s, 4);
+  }
+
   context.globalAlpha = 1;
 }
 
@@ -572,3 +650,27 @@ themeSwitch.addEventListener('change', () => {
 });
 
 initTheme();
+
+function applySkin(skin) {
+  document.documentElement.setAttribute('data-skin', skin);
+  skinSelect.value = skin;
+}
+
+function initSkin() {
+  const saved = localStorage.getItem(SKIN_KEY);
+  applySkin(saved || 'retro');
+}
+
+skinSelect.addEventListener('change', () => {
+  const skin = skinSelect.value;
+  applySkin(skin);
+  localStorage.setItem(SKIN_KEY, skin);
+  // el bucle de animación no corre en pausa ni en la pantalla de selección de modo,
+  // así que redibujamos manualmente para que el cambio se vea al instante
+  if (board && current && next) {
+    draw();
+    drawNext();
+  }
+});
+
+initSkin();

@@ -166,6 +166,24 @@ body {
   transform: translateX(20px);
 }
 
+/* ---- Selector de skin ---- */
+.skin-select {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.select {
+  background: var(--control-bg);
+  color: var(--control-text);
+  border: 1px solid var(--control-border);
+  border-radius: 4px;
+  padding: 4px 6px;
+  font-size: 11px;
+  font-family: inherit;
+  cursor: pointer;
+}
+
 /* ---- Controles ---- */
 .controls ul {
   list-style: none;
@@ -296,4 +314,46 @@ kbd {
   width: 0%;
   background: var(--accent);
   transition: width 0.2s;
+}
+
+/* ---- Skins visuales (independientes del tema claro/oscuro) ---- */
+[data-skin="neon"] {
+  --bg: #04040a;
+  --accent: #39ff14;
+  --overlay-title: #ff2fd0;
+}
+
+[data-theme="light"][data-skin="neon"] {
+  --bg: #0d0d18;
+  --text: #eef0f7;
+  --muted-label: #9a9ab8;
+}
+
+[data-skin="neon"] #board,
+[data-skin="neon"] #next-canvas {
+  background: #000000;
+  box-shadow: 0 0 24px rgba(57, 255, 20, 0.3);
+}
+
+[data-skin="pastel"] {
+  --bg: #fdf3f7;
+  --accent: #ff8fab;
+}
+
+[data-theme="light"][data-skin="pastel"] {
+  --bg: #fff7fb;
+}
+
+[data-skin="pastel"] #board,
+[data-skin="pastel"] #next-canvas {
+  background: #fffaf5;
+}
+
+[data-skin="pixel"] {
+  --bg: #101018;
+  --accent: #ffcc00;
+}
+
+[data-theme="light"][data-skin="pixel"] {
+  --bg: #f4f1e6;
 }
