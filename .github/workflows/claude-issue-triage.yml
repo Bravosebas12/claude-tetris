@@ -36,6 +36,7 @@ jobs:
                - Componente(s) del código probablemente afectado(s) (game.js, index.html o style.css, y si es posible la función o zona concreta según la arquitectura descrita en CLAUDE.md).
                - Causa probable o hipótesis del origen del problema.
                - Un esbozo del posible enfoque de solución (sin implementarlo todavía; esto es solo diagnóstico para guiar el desarrollo posterior).
+               El comentario debe estar escrito en formato Markdown válido que GitHub pueda renderizar correctamente (encabezados, listas, bloques de código con ``` para nombres de función o fragmentos, etc.).
             5. No hagas ningún otro cambio en el repositorio (no toques código, no abras PRs).
 
           claude_args: |
