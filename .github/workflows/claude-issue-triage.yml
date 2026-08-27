@@ -1,0 +1,128 @@
+name: Claude Issue Triage
+
+on:
+  issues:
+    types: [opened, edited]
+
+concurrency:
+  group: issue-triage-${{ github.event.issue.number }}
+  cancel-in-progress: true
+
+jobs:
+  triage:
+    # No corre para issues ya atendidos por @claude (los maneja claude.yml) ni para bots.
+    if: >-
+      github.actor != 'github-actions[bot]' &&
+      !contains(github.event.issue.body, '@claude') &&
+      !contains(github.event.issue.title, '@claude')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      id-token: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Asegurar labels del proyecto
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          create_label() {
+            gh label create "$1" --color "$2" --description "$3" --force
+          }
+          # Tipo
+          create_label "bug" "d73a4a" "Algo no funciona como debería"
+          create_label "feature" "a2eeef" "Nueva funcionalidad"
+          create_label "enhancement" "84b6eb" "Mejora sobre algo existente"
+          create_label "question" "d876e3" "Pregunta o duda"
+          create_label "docs" "0075ca" "Documentación (README, CLAUDE.md)"
+          # Área
+          create_label "area:gameplay" "c2e0c6" "Lógica del juego: colisiones, rotación, spawn, niveles"
+          create_label "area:rendering" "c2e0c6" "Dibujo en canvas, colores, ghost piece"
+          create_label "area:ui" "c2e0c6" "HTML/CSS: layout, panel, overlay"
+          create_label "area:controls" "c2e0c6" "Input de teclado"
+          create_label "area:scoring" "c2e0c6" "Puntaje, líneas, nivel"
+          create_label "area:ci" "c2e0c6" "GitHub Actions / workflows"
+          # Prioridad
+          create_label "priority:high" "e11d21" "Prioridad alta"
+          create_label "priority:medium" "fbca04" "Prioridad media"
+          create_label "priority:low" "c5def5" "Prioridad baja"
+          # Complejidad
+          create_label "complexity:low" "bfd4f2" "Cambio acotado, bajo riesgo"
+          create_label "complexity:medium" "bfd4f2" "Cambio moderado, cruza más de una función"
+          create_label "complexity:high" "bfd4f2" "Cambio grande o riesgoso"
+          # Estado
+          create_label "needs-info" "eeeeee" "Falta información para poder diagnosticar"
+          create_label "triaged" "0e8a16" "Ya fue analizado automáticamente por Claude"
+
+      - name: Analizar issue con Claude
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          claude_args: >-
+            --allowedTools "Read,Grep,Glob,Bash(gh issue view:*),Bash(gh issue edit:*),Bash(gh issue comment:*),Bash(gh label list:*)"
+          prompt: |
+            Estás analizando el issue #${{ github.event.issue.number }} de este repositorio
+            (un juego de Tetris en JavaScript vanilla, ver CLAUDE.md para la arquitectura).
+            Todo lo que escribas debe estar en español.
+
+            Pasos a seguir:
+
+            1. Ejecutá `gh issue view ${{ github.event.issue.number }} --json title,body,labels,comments`
+               para leer el issue completo.
+            2. Leé el código relevante para fundamentar tu análisis: `game.js`, `index.html`,
+               `style.css`, y si hace falta `README.md` y `CLAUDE.md`. El repo es chico (3 archivos
+               de código), podés leerlos enteros.
+            3. Asigná labels con `gh issue edit ${{ github.event.issue.number }} --add-label "..."`
+               usando EXCLUSIVAMENTE labels de este set fijo (no inventes ni crees labels nuevos):
+               - Tipo (elegí exactamente uno): bug, feature, enhancement, question, docs
+               - Área (uno o más, según corresponda): area:gameplay, area:rendering, area:ui,
+                 area:controls, area:scoring, area:ci
+               - Prioridad (exactamente uno): priority:high, priority:medium, priority:low
+               - Complejidad (exactamente uno): complexity:low, complexity:medium, complexity:high
+               - Agregá siempre "triaged". Si el issue no tiene información suficiente para
+                 reproducir o ubicar el problema, agregá también "needs-info".
+               Si es una re-ejecución (el issue fue editado y ya tiene algunos de estos labels),
+               recalculá la clasificación y usá `gh issue edit ... --remove-label "..."` para sacar
+               los labels del mismo grupo que ya no correspondan antes de agregar los nuevos.
+            4. Publicá un comentario de diagnóstico con
+               `gh issue comment ${{ github.event.issue.number }} --body-file <archivo>` (escribí el
+               cuerpo a un archivo temporal primero) siguiendo EXACTAMENTE esta plantilla en español:
+
+               ## 🔎 Diagnóstico automático
+
+               **Resumen:** <qué pide o reporta el issue, en 1-2 líneas>
+               **Clasificación:** <tipo> / <área(s)> / <prioridad> / <complejidad> — <por qué, breve>
+
+               ### Causa probable
+               <análisis técnico apoyado en el código real, citando funciones/variables de game.js
+               cuando aplique>
+
+               ### Código implicado
+               - `archivo:línea` — `nombreDeFunción()` — qué rol tiene en el problema
+               (repetir por cada archivo/función relevante)
+
+               ### Propuesta de solución
+               1. <pasos concretos de implementación, suficientemente específicos para poder
+                  codificarlos después>
+
+               ### Criterios de aceptación
+               - [ ] <criterio verificable jugando manualmente, ya que el repo no tiene tests
+                 automatizados>
+
+               ### Riesgos / dudas abiertas
+               <qué falta saber o confirmar, o "Ninguna" si no hay>
+
+               ---
+               *Generado automáticamente por Claude. Comentá `@claude implementá esta solución` para
+               pasar a la etapa de código.*
+
+            Reglas importantes:
+            - No modifiques el cuerpo ni el título del issue.
+            - No crees ramas, commits ni pull requests.
+            - No edites archivos del repositorio.
+            - No uses labels fuera del set fijo listado arriba.
