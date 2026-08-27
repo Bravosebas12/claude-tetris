@@ -33,7 +33,7 @@ All game state lives in one `let board, current, next, score, ...` declaration. 
 
 `loop(ts)` is a `requestAnimationFrame` callback that accumulates `dt` into `dropAccum` and drops one row when `dropAccum >= dropInterval`. **`draw()` runs only inside `loop`**, so input handling never renders directly — a keypress mutates `current` and the next frame paints it. Pause cancels the rAF and resume re-seeds `lastTime` from `performance.now()` before restarting it, so the paused span does not arrive as one huge `dt`.
 
-Known quirk: `endGame()` calls `cancelAnimationFrame(animId)`, but when the game ends from inside `loop` (via `lockPiece` → `spawn`), that id is the frame already executing, so `loop` continues on to schedule another frame. Pieces keep falling behind the Game Over overlay; the `gameOver` flag only blocks input. Touch this if you rework lock/end-game flow.
+`endGame()` calls `cancelAnimationFrame(animId)`, but when the game ends from inside `loop` (via `lockPiece` → `spawn`), that id is the frame already executing, so cancelling it is a no-op. `loop()` guards this itself: it checks `gameOver` right after `draw()` and returns before scheduling the next frame, so the current frame still paints the final state but the loop doesn't keep running (and re-locking/re-spawning) behind the Game Over overlay. Touch this if you rework lock/end-game flow.
 
 ### Rotation
 
