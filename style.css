@@ -133,7 +133,7 @@ kbd {
   color: #7aa2f7;
 }
 
-#restart-btn {
+.btn {
   margin-top: 8px;
   background: #7aa2f7;
   color: #0f0f17;
@@ -147,6 +147,6 @@ kbd {
   transition: background 0.15s;
 }
 
-#restart-btn:hover {
+.btn:hover {
   background: #9bbdff;
 }

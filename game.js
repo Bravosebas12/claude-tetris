@@ -4,7 +4,7 @@ const COLS = 10;
 const ROWS = 20;
 const BLOCK = 30;
 
-const COLORS = [
+let COLORS = [
   null,
   '#4dd0e1', // I - cyan
   '#ffd54f', // O - yellow
@@ -40,7 +40,8 @@ const overlayTitle = document.getElementById('overlay-title');
 const overlayScore = document.getElementById('overlay-score');
 const restartBtn = document.getElementById('restart-btn');
 
-let board, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId;
+let board, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId, combo, maxCombo;
+let startingLevel = 1;
 
 function createBoard() {
   return Array.from({ length: ROWS }, () => new Array(COLS).fill(0));
@@ -104,11 +105,15 @@ function clearLines() {
     }
   }
   if (cleared) {
+    combo++;
+    maxCombo = Math.max(maxCombo, combo);
     lines += cleared;
     score += (LINE_SCORES[cleared] || 0) * level;
     level = Math.floor(lines / 10) + 1;
     dropInterval = Math.max(100, 1000 - (level - 1) * 90);
     updateHUD();
+  } else {
+    combo = 0;
   }
 }
 
@@ -156,7 +161,7 @@ function updateHUD() {
   levelEl.textContent = level;
 }
 
-function drawBlock(context, x, y, colorIndex, size, alpha) {
+let drawBlock = function(context, x, y, colorIndex, size, alpha) {
   if (!colorIndex) return;
   const color = COLORS[colorIndex];
   context.globalAlpha = alpha ?? 1;
@@ -166,9 +171,9 @@ function drawBlock(context, x, y, colorIndex, size, alpha) {
   context.fillStyle = 'rgba(255,255,255,0.12)';
   context.fillRect(x * size + 1, y * size + 1, size - 2, 4);
   context.globalAlpha = 1;
-}
+};
 
-function drawGrid() {
+let drawGrid = function() {
   ctx.strokeStyle = '#22222e';
   ctx.lineWidth = 0.5;
   for (let c = 1; c < COLS; c++) {
@@ -183,7 +188,7 @@ function drawGrid() {
     ctx.lineTo(COLS * BLOCK, r * BLOCK);
     ctx.stroke();
   }
-}
+};
 
 function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -224,6 +229,7 @@ function endGame() {
   overlayTitle.textContent = 'GAME OVER';
   overlayScore.textContent = `Puntuación: ${score.toLocaleString()}`;
   overlay.classList.remove('hidden');
+  if (typeof onGameOver === 'function') onGameOver({ score, lines, level, maxCombo });
 }
 
 function togglePause() {
@@ -234,10 +240,8 @@ function togglePause() {
     loop(lastTime);
   } else {
     cancelAnimationFrame(animId);
-    overlayTitle.textContent = 'PAUSA';
-    overlayScore.textContent = '';
-    overlay.classList.remove('hidden');
   }
+  if (typeof onPauseChange === 'function') onPauseChange(paused);
 }
 
 function loop(ts) {
@@ -256,26 +260,29 @@ function loop(ts) {
   animId = requestAnimationFrame(loop);
 }
 
-function init() {
+function init(startLevel) {
   board = createBoard();
   score = 0;
   lines = 0;
-  level = 1;
+  level = startLevel || 1;
+  combo = 0;
+  maxCombo = 0;
   paused = false;
   gameOver = false;
-  dropInterval = 1000;
+  dropInterval = Math.max(100, 1000 - (level - 1) * 90);
   dropAccum = 0;
   lastTime = performance.now();
   next = randomPiece();
   spawn();
   updateHUD();
   overlay.classList.add('hidden');
+  if (typeof onPauseChange === 'function') onPauseChange(false);
   cancelAnimationFrame(animId);
   animId = requestAnimationFrame(loop);
 }
 
 document.addEventListener('keydown', e => {
-  if (e.code === 'KeyP') { togglePause(); return; }
+  if (e.code === 'KeyP' || e.code === 'Escape') { togglePause(); return; }
   if (paused || gameOver) return;
   switch (e.code) {
     case 'ArrowLeft':
@@ -299,6 +306,6 @@ document.addEventListener('keydown', e => {
   updateHUD();
 });
 
-restartBtn.addEventListener('click', init);
+restartBtn.addEventListener('click', () => init(startingLevel));
 
 init();

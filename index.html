@@ -40,6 +40,10 @@
             <li><kbd>P</kbd> pausa</li>
           </ul>
         </div>
+
+        <div class="panel-section" id="high-score-panel"></div>
+
+        <div class="panel-section" id="theme-panel"></div>
       </aside>
     </div>
 
@@ -47,11 +51,20 @@
       <div class="overlay-box">
         <p id="overlay-title">GAME OVER</p>
         <p id="overlay-score"></p>
-        <button id="restart-btn">Reiniciar</button>
+        <div id="high-score-slot"></div>
+        <button id="restart-btn" class="btn">Reiniciar</button>
+      </div>
+    </div>
+
+    <div id="pause-overlay" class="overlay hidden">
+      <div class="overlay-box">
       </div>
     </div>
   </div>
 
   <script src="game.js"></script>
+  <script src="pause-menu.js"></script>
+  <script src="highscores.js"></script>
+  <script src="themes.js"></script>
 </body>
 </html>
