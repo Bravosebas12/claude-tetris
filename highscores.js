@@ -86,6 +86,8 @@ function renderHighScores() {
     highScorePanelEl = document.getElementById('high-score-panel');
   }
 
+  if (!highScorePanelEl) return;
+
   const scores = loadHighScores();
   const bestCombo = localStorage.getItem(BEST_COMBO_KEY);
   const maxLines = localStorage.getItem(MAX_LINES_KEY);
@@ -103,10 +105,11 @@ function renderHighScores() {
     scores.forEach((entry, index) => {
       const isNew = justAddedScore && entry.score === justAddedScore;
       const rowClass = isNew ? ' class="high-score-entry high-score-new"' : ' class="high-score-entry"';
+      const scoreStr = entry.score != null ? entry.score.toLocaleString() : '0';
       html += `<tr${rowClass}>`;
       html += `<td class="rank">${index + 1}</td>`;
       html += `<td class="name">${entry.name}</td>`;
-      html += `<td class="score">${entry.score.toLocaleString()}</td>`;
+      html += `<td class="score">${scoreStr}</td>`;
       html += `</tr>`;
     });
 
@@ -148,6 +151,8 @@ function renderHighScoreTable(scores) {
     highScoreSlotEl = document.getElementById('high-score-slot');
   }
 
+  if (!highScoreSlotEl) return;
+
   if (scores.length === 0) {
     highScoreSlotEl.innerHTML = '';
     return;
@@ -162,10 +167,11 @@ function renderHighScoreTable(scores) {
   scores.forEach((entry, index) => {
     const isNew = justAddedScore && entry.score === justAddedScore;
     const rowClass = isNew ? ' class="high-score-entry high-score-new"' : ' class="high-score-entry"';
+    const scoreStr = entry.score != null ? entry.score.toLocaleString() : '0';
     html += `<tr${rowClass}>`;
     html += `<td class="rank">${index + 1}</td>`;
     html += `<td class="name">${entry.name}</td>`;
-    html += `<td class="score">${entry.score.toLocaleString()}</td>`;
+    html += `<td class="score">${scoreStr}</td>`;
     html += `</tr>`;
   });
 
@@ -184,6 +190,8 @@ function renderHighScoreForm(stats) {
   if (!highScoreSlotEl) {
     highScoreSlotEl = document.getElementById('high-score-slot');
   }
+
+  if (!highScoreSlotEl) return;
 
   // Show name input form
   let html = '';
