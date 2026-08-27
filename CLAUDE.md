@@ -35,6 +35,19 @@ All game state lives in one `let board, current, next, score, ...` declaration. 
 
 `endGame()` calls `cancelAnimationFrame(animId)`, but when the game ends from inside `loop` (via `lockPiece` → `spawn`), that id is the frame already executing, so cancelling it is a no-op. `loop()` guards this itself: it checks `gameOver` right after `draw()` and returns before scheduling the next frame, so the current frame still paints the final state but the loop doesn't keep running (and re-locking/re-spawning) behind the Game Over overlay. Touch this if you rework lock/end-game flow.
 
+### The nut piece (N): a piece with a permanent hole
+
+`PIECES[8]` is a 3×3 ring — `[[8,8,8],[8,0,8],[8,8,8]]` — with a `0` in the
+center instead of a type digit. This is not a bug: `merge()` only writes
+truthy shape cells into `board`, so that center cell never gets written.
+Once the piece locks, its own four solid neighbors seal that cell off, so no
+future piece can ever occupy it — the row it sits in can never satisfy
+`clearLines()`'s `every(v => v !== 0)` and is permanently stuck. This is the
+intended difficulty spike, not something to "fix". The same zero-cell
+mechanism also lets the ring be placed straddling a single-cell protrusion
+already on the board (the hole simply skips the collision check there), same
+as the empty corners of T/S/Z/J/L already do.
+
 ### Rotation
 
 `rotateCW()` is a plain transpose-and-reverse over the square matrix; no rotation-state index is tracked. `tryRotate()` implements a simplified kick table — horizontal offsets `[0, -1, 1, -2, 2]` only, not SRS — and abandons the rotation if all five fail.
