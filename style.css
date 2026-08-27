@@ -150,3 +150,86 @@ kbd {
 .btn:hover {
   background: #9bbdff;
 }
+
+/* ---- Pause Menu ---- */
+#pause-title {
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: 4px;
+  color: #4dd0e1;
+  margin-bottom: 8px;
+}
+
+.pause-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: center;
+  width: 100%;
+  max-width: 280px;
+}
+
+.level-select-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+  width: 100%;
+  margin-top: 4px;
+}
+
+.level-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #aaa;
+  letter-spacing: 0.5px;
+}
+
+.level-select {
+  background: #22223a;
+  color: #e0e0e0;
+  border: 1px solid #3a3a5a;
+  border-radius: 4px;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+
+.level-select:hover {
+  border-color: #5a5a7a;
+}
+
+.level-select:focus {
+  outline: none;
+  border-color: #7aa2f7;
+}
+
+.controls-view {
+  width: 100%;
+  margin-top: 8px;
+  padding-top: 12px;
+  border-top: 1px solid #3a3a5a;
+  transition: opacity 0.2s;
+}
+
+.controls-view.hidden {
+  display: none;
+}
+
+.controls-list ul {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0;
+}
+
+.controls-list li {
+  font-size: 12px;
+  color: #888;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
