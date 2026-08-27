@@ -12,6 +12,7 @@ function onPauseChange(isPaused) {
   // Initialize DOM elements on first call if not already done
   if (!pauseOverlayEl) {
     pauseOverlayEl = document.getElementById('pause-overlay');
+    if (!pauseOverlayEl) return; // Abort if element not found
     pauseBoxEl = pauseOverlayEl.querySelector('.overlay-box');
   }
 
@@ -19,7 +20,7 @@ function onPauseChange(isPaused) {
     // Ensure menu is built before showing
     if (!pauseMenuEl) buildPauseMenu();
     // Show pause overlay
-    pauseOverlayEl.classList.remove('hidden');
+    if (pauseOverlayEl) pauseOverlayEl.classList.remove('hidden');
     // Reset controls visibility
     controlsVisible = false;
     if (controlsViewEl) controlsViewEl.classList.add('hidden');
