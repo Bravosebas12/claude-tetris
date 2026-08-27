@@ -150,3 +150,130 @@ kbd {
 .btn:hover {
   background: #9bbdff;
 }
+
+/* ---- Theme-specific styles ---- */
+
+.theme-btn {
+  margin-top: 4px;
+  padding: 6px 12px;
+  font-size: 12px;
+  opacity: 0.6;
+  border-width: 1px;
+  transition: opacity 0.15s, border-width 0.15s;
+}
+
+.theme-btn.theme-active {
+  opacity: 1;
+  border-width: 2px;
+}
+
+/* Retro theme (default) */
+[data-theme="retro"] {
+  background: #0f0f17;
+}
+
+[data-theme="retro"] #board {
+  background: #1a1a25;
+  border-color: #2a2a3a;
+  box-shadow: 0 0 40px rgba(0, 0, 0, 0.6);
+}
+
+[data-theme="retro"] #next-canvas {
+  background: #1a1a25;
+  border-color: #2a2a3a;
+}
+
+/* Neon theme */
+[data-theme="neon"] {
+  background: #000000;
+}
+
+[data-theme="neon"] body {
+  background: #000000;
+}
+
+[data-theme="neon"] #board {
+  background: #001a1a;
+  border-color: #00ffff;
+  box-shadow: 0 0 20px rgba(0, 255, 255, 0.3);
+}
+
+[data-theme="neon"] #next-canvas {
+  background: #001a1a;
+  border-color: #00ffff;
+  box-shadow: 0 0 10px rgba(0, 255, 255, 0.2);
+}
+
+[data-theme="neon"] .label {
+  color: #00ffff;
+}
+
+[data-theme="neon"] .value {
+  color: #ffff00;
+}
+
+/* Pastel theme */
+[data-theme="pastel"] {
+  background: #f5f0f0;
+}
+
+[data-theme="pastel"] body {
+  background: #f5f0f0;
+  color: #666666;
+}
+
+[data-theme="pastel"] #board {
+  background: #fefaf5;
+  border-color: #e8d8d0;
+  box-shadow: 0 0 20px rgba(200, 180, 160, 0.3);
+}
+
+[data-theme="pastel"] #next-canvas {
+  background: #fefaf5;
+  border-color: #e8d8d0;
+}
+
+[data-theme="pastel"] .label {
+  color: #b8a8a0;
+}
+
+[data-theme="pastel"] .value {
+  color: #d8a8a0;
+}
+
+[data-theme="pastel"] .btn {
+  background: #d8b8b0;
+  color: #fff;
+}
+
+[data-theme="pastel"] .btn:hover {
+  background: #e8c8c0;
+}
+
+/* Pixel art theme */
+[data-theme="pixel"] {
+  background: #1a1a2e;
+}
+
+[data-theme="pixel"] body {
+  background: #1a1a2e;
+}
+
+[data-theme="pixel"] #board {
+  background: #0a0a1a;
+  border-color: #0088ff;
+  box-shadow: 0 0 15px rgba(0, 136, 255, 0.25);
+}
+
+[data-theme="pixel"] #next-canvas {
+  background: #0a0a1a;
+  border-color: #0088ff;
+}
+
+[data-theme="pixel"] .label {
+  color: #0088ff;
+}
+
+[data-theme="pixel"] .value {
+  color: #ffff00;
+}
