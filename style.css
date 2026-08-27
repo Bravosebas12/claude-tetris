@@ -150,3 +150,149 @@ kbd {
 .btn:hover {
   background: #9bbdff;
 }
+
+/* ---- High Score Table ---- */
+.high-score-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+  margin-bottom: 8px;
+}
+
+.high-score-table thead {
+  border-bottom: 1px solid #3a3a5a;
+}
+
+.high-score-table th {
+  padding: 4px 2px;
+  text-align: right;
+  color: #888;
+  font-weight: 600;
+  font-size: 10px;
+  letter-spacing: 1px;
+}
+
+.high-score-table th:first-child {
+  text-align: center;
+}
+
+.high-score-entry {
+  border-bottom: 1px solid #22223a;
+}
+
+.high-score-entry td {
+  padding: 4px 2px;
+  text-align: right;
+  color: #aaa;
+  font-family: 'Courier New', Courier, monospace;
+}
+
+.high-score-entry .rank {
+  text-align: center;
+  color: #888;
+  font-weight: 600;
+}
+
+.high-score-entry .name {
+  text-align: left;
+  color: #7aa2f7;
+}
+
+.high-score-entry.high-score-new {
+  background-color: rgba(255, 255, 255, 0.08);
+  border-left: 2px solid #7aa2f7;
+  padding-left: 2px;
+}
+
+.high-score-empty {
+  font-size: 12px;
+  color: #666;
+  padding: 8px 0;
+  text-align: center;
+}
+
+.high-score-stats {
+  margin: 8px 0;
+  padding: 8px 0;
+  border-top: 1px solid #22223a;
+  border-bottom: 1px solid #22223a;
+}
+
+.stat-line {
+  font-size: 11px;
+  color: #888;
+  padding: 2px 0;
+}
+
+.high-score-reset-btn {
+  font-size: 12px;
+  padding: 6px 12px;
+  margin-top: 8px;
+}
+
+/* ---- High Score Form (Game Over Overlay) ---- */
+.high-score-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.high-score-label {
+  font-size: 12px;
+  letter-spacing: 1px;
+  color: #888;
+}
+
+.high-score-input {
+  background: #22223a;
+  border: 1px solid #3a3a5a;
+  border-radius: 4px;
+  padding: 8px 12px;
+  color: #7aa2f7;
+  font-family: inherit;
+  font-size: 13px;
+  width: 180px;
+  text-align: center;
+  transition: border-color 0.15s;
+}
+
+.high-score-input:focus {
+  outline: none;
+  border-color: #7aa2f7;
+  box-shadow: 0 0 8px rgba(122, 162, 247, 0.2);
+}
+
+.high-score-input::placeholder {
+  color: #555;
+}
+
+.high-score-submit-btn {
+  font-size: 13px;
+  padding: 8px 20px;
+}
+
+.high-score-no-qualify {
+  font-size: 12px;
+  color: #888;
+  margin: 8px 0;
+  font-style: italic;
+}
+
+.high-score-overlay-table {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+  max-width: 280px;
+}
+
+.high-score-overlay-table .label {
+  margin-bottom: 4px;
+}
+
+.high-score-overlay-table .high-score-table {
+  width: 100%;
+  font-size: 10px;
+}
