@@ -1,0 +1,65 @@
+name: Claude Issue Triage
+
+on:
+  issues:
+    types: [opened, edited]
+
+jobs:
+  triage:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      id-token: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Run Claude Issue Triage
+        id: claude-triage
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+
+          prompt: |
+            Eres un asistente de triage de issues para un juego Tetris en HTML5 Canvas. Tu tarea es:
+
+            1. **Leer el issue #${{ github.event.issue.number }}**: analiza título y cuerpo para entender qué está reportando.
+
+            2. **Asignar labels apropiados** de esta lista exacta (crea las que no existan todavía):
+               - bug: defecto/fallo funcional
+               - enhancement: mejora o nueva funcionalidad
+               - gameplay: lógica de juego (piezas, líneas, scoring, niveles, etc.)
+               - rendering: canvas, gráficos, visual
+               - controls: input, teclado, movimiento
+               - performance: velocidad, optimización
+               - question: pregunta/duda
+               - documentation: docs, comentarios de código
+
+               Aplica solo 1-2 labels que describan mejor el issue. NO duplicar labels ya presentes.
+
+            3. **Redactar un diagnóstico técnico en español** (solo si el issue no es una pregunta o comentario casual):
+               - **Resumen**: qué es el problema en 1-2 líneas.
+               - **Análisis técnico**: causa probable, dónde está en el código (archivo, función, línea aproximada).
+               - **Archivos y funciones involucrados**: lista específica (ej. game.js: randomPiece(), collide(), lockPiece()).
+               - **Enfoque de solución sugerido**: qué habría que cambiar/revisar a alto nivel (sin escribir código).
+
+            4. **Actualizar vs. crear comentario**:
+               - Busca si ya existe un comentario tuyo anterior en el issue (búscalo por el encabezado "## 🤖 Diagnóstico Claude").
+               - Si existe: edítalo con `gh api repos/${{ github.repository }}/issues/comments/{id} -X PATCH -f body="..."`.
+               - Si no existe: crea uno nuevo con `gh issue comment ${{ github.event.issue.number }} -b "..."`.
+
+            5. **IMPORTANTE**: Solo diagnosticas y asignas labels. No modifies código, no hagas commits, no crees PRs.
+
+            Usa `gh` para todas las operaciones:
+            - `gh label list` — listar labels existentes
+            - `gh label create <nombre> -d <descripción> --color <hex>` — crear labels nuevos (usa colores razonables)
+            - `gh issue view ${{ github.event.issue.number }}` — leer issue completo
+            - `gh issue edit ${{ github.event.issue.number }} --add-label <labels>` — aplicar labels
+            - `gh issue comment ${{ github.event.issue.number }} -b "..."` — comentar
+            - `gh api repos/${{ github.repository }}/issues/${{ github.event.issue.number }}/comments` — listar comentarios para encontrar el tuyo
+
+          claude_args: '--allowedTools "Read,Grep,Glob,Bash(gh issue:*,gh label:*,gh api:*)"'
