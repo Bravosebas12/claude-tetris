@@ -1,0 +1,106 @@
+name: Claude Issue Triage
+
+on:
+  issues:
+    types: [opened, edited]
+
+concurrency:
+  group: issue-triage-${{ github.event.issue.number }}
+  cancel-in-progress: true
+
+jobs:
+  triage:
+    if: github.event.issue.user.type != 'Bot' && github.event.sender.type != 'Bot'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      id-token: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Ensure project labels exist
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh label create "area:gameplay" --color "1d76db" --description "Colisión, rotación, drop, lock, spawn" --force
+          gh label create "area:render" --color "5319e7" --description "Dibujado en canvas, ghost piece, colores" --force
+          gh label create "area:input" --color "0e8a16" --description "Teclado y controles" --force
+          gh label create "area:ui" --color "fbca04" --description "HTML/CSS, HUD, overlay, preview" --force
+          gh label create "area:scoring" --color "c2e0c6" --description "Score, lines, level, dropInterval" --force
+          gh label create "complexity:low" --color "c2e0c6" --description "Cambio local, 1 función" --force
+          gh label create "complexity:medium" --color "fbca04" --description "Varias funciones o archivos" --force
+          gh label create "complexity:high" --color "d93f0b" --description "Cambio estructural o de estado global" --force
+
+      - name: Run Claude issue triage
+        uses: anthropics/claude-code-action@v1
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          claude_args: >-
+            --allowedTools "Read,Glob,Grep,Bash(gh label list:*),Bash(gh issue view:*),Bash(gh issue edit:*),Bash(gh issue comment:*)"
+          prompt: |
+            Repositorio: ${{ github.repository }}
+            Issue: #${{ github.event.issue.number }}
+
+            Eres el triager automático de issues de este repo (Tetris en HTML5 Canvas + JS vanilla,
+            ver CLAUDE.md). Tu trabajo es SOLO etiquetar y diagnosticar, nunca escribir código ni
+            abrir PRs ni modificar el issue más allá de labels y un comentario.
+
+            Pasos:
+            1. `gh issue view ${{ github.event.issue.number }} --json title,body,labels,comments`
+               para leer el issue completo, incluyendo comentarios previos.
+            2. `gh label list --limit 100` para ver los labels disponibles exactos (no inventes
+               nombres ni colores nuevos).
+            3. Lee CLAUDE.md, game.js, index.html y style.css para entender la arquitectura real
+               del juego y localizar en el código la parte relevante al issue.
+            4. Decide labels y aplícalos con
+               `gh issue edit ${{ github.event.issue.number }} --add-label "..."`:
+               - Exactamente un label de tipo: bug, enhancement, documentation, question, invalid
+                 o duplicate.
+               - Uno o más de: area:gameplay, area:render, area:input, area:ui, area:scoring.
+               - Exactamente un complexity:low / complexity:medium / complexity:high.
+               - Opcional si aplica: accessibility, good first issue, help wanted.
+               No quites labels que ya haya puesto una persona. No apliques labels que no existan
+               en la lista del paso 2.
+            5. Publica un único comentario de diagnóstico con
+               `gh issue comment ${{ github.event.issue.number }} --body "..."` usando esta
+               plantilla en español:
+
+               ## 🔍 Diagnóstico automático
+
+               **Tipo:** … · **Áreas:** … · **Complejidad:** …
+
+               ### Resumen
+               Una o dos frases sobre qué pide el issue.
+
+               ### Comportamiento actual vs esperado
+               - Actual: …
+               - Esperado: …
+
+               ### Causa probable / punto de intervención
+               Referencias concretas tipo `game.js:142` (`tryRotate`).
+
+               ### Archivos y funciones a tocar
+               - `game.js` — funciones concretas
+               - otros archivos si aplica
+
+               ### Propuesta de implementación
+               1. …
+               2. …
+
+               ### Criterios de aceptación
+               - [ ] …
+
+               ### Riesgos y dudas abiertas
+               - …
+
+            Si el issue es demasiado vago para diagnosticar con precisión, etiqueta como `question`
+            y en el comentario pide la información concreta que falta en vez de inventar una causa.
+
+            No modifiques el título ni el cuerpo del issue. No comentes más de una vez por
+            ejecución.
