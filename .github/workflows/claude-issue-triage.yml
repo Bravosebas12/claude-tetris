@@ -45,6 +45,8 @@ jobs:
                  described in CLAUDE.md.
                - A suggested general approach for the fix or implementation — do NOT write or propose
                  actual code changes, this is diagnostic only, implementation happens later.
+               - The comment body must be written in GitHub-flavored Markdown (headings, lists, code
+                 spans, etc.) so it renders correctly on GitHub.
 
             Do not modify any files in the repository. Only use `gh issue edit` and `gh issue comment`.
           claude_args: '--allowedTools "Bash(gh issue view:*),Bash(gh issue edit:*),Bash(gh issue comment:*)"'
