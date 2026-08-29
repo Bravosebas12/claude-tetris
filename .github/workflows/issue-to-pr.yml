@@ -1,0 +1,40 @@
+name: Issue to PR - Claude Code Generation
+
+on:
+  issues:
+    types: [opened, edited]
+
+permissions:
+  issues: read
+  contents: write
+  pull-requests: write
+
+jobs:
+  generate-from-issue:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install requests
+
+      - name: Generate code from issue
+        env:
+          AWS_BEARER_TOKEN: ${{ secrets.AWS_BEARER_TOKEN }}
+          AWS_REGION: ${{ secrets.AWS_REGION || 'us-east-1' }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+          ISSUE_BODY: ${{ github.event.issue.body }}
+        run: |
+          python .github/scripts/generate-from-issue.py
