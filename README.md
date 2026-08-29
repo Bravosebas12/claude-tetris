@@ -184,3 +184,7 @@ Algunos parámetros fáciles de tunear en `game.js`:
 ## Licencia
 
 Proyecto de uso libre con fines educativos y de práctica.
+
+
+## Testeo cambios claude  
+Probando si claude puede ver la PR
