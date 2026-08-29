@@ -1,0 +1,50 @@
+name: Claude Issue Triage
+
+on:
+  issues:
+    types: [opened, edited]
+
+jobs:
+  triage:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: read
+      id-token: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Run Claude Issue Triage
+        id: claude-triage
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: |
+            Analyze issue #${{ github.event.issue.number }} in this repository (title: "${{ github.event.issue.title }}").
+
+            This is a vanilla JavaScript Tetris game (see CLAUDE.md for architecture: board, pieces,
+            collision, rotation/wall kicks, game loop, line clearing, level/speed, ghost piece,
+            rendering, input handling — all in game.js).
+
+            Do the following:
+
+            1. Read the issue body and any comments with `gh issue view ${{ github.event.issue.number }} --comments`.
+            2. Choose the most appropriate label(s) for this issue, using ONLY these existing labels
+               (do not create new ones): bug, enhancement, documentation, question, help wanted,
+               good first issue, invalid, duplicate, wontfix.
+            3. Apply the chosen label(s) with `gh issue edit ${{ github.event.issue.number }} --add-label "<label>"`.
+            4. Post a diagnostic comment with `gh issue comment ${{ github.event.issue.number }} --body "..."` that includes:
+               - A short summary of the problem or request.
+               - The likely area(s) of game.js involved (e.g. collision detection, rotation/wall kicks,
+                 line clearing, rendering, input handling, game loop timing), based on the architecture
+                 described in CLAUDE.md.
+               - A suggested general approach for the fix or implementation — do NOT write or propose
+                 actual code changes, this is diagnostic only, implementation happens later.
+
+            Do not modify any files in the repository. Only use `gh issue edit` and `gh issue comment`.
+          claude_args: '--allowedTools "Bash(gh issue view:*),Bash(gh issue edit:*),Bash(gh issue comment:*)"'
