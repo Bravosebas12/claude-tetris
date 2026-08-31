@@ -11,8 +11,9 @@ const COLORS = [
   '#ba68c8', // T - purple
   '#81c784', // S - green
   '#e57373', // Z - red
-  '#7986cb', // J - indigo
+  '#64b5f6', // J - light blue
   '#ffb74d', // L - orange
+  '#b0bec5', // N - nut/tuerca
 ];
 
 const PIECES = [
@@ -24,9 +25,24 @@ const PIECES = [
   [[5,5,0],[0,5,5],[0,0,0]],                  // Z
   [[6,0,0],[6,6,6],[0,0,0]],                  // J
   [[0,0,7],[7,7,7],[0,0,0]],                  // L
+  [[8,8,8],[8,0,8],[8,8,8]],                  // N - nut/tuerca (con hueco central)
 ];
 
 const LINE_SCORES = [0, 100, 300, 500, 800];
+
+// Power-ups: aparecen en la pieza `next` cada POWERUP_LINE_INTERVAL líneas
+// eliminadas (acumuladas). El efecto se resuelve una sola vez, al encajar la
+// pieza (ver resolvePowerUp), y solo afecta a `board` — nunca se guarda un
+// valor especial en las celdas, así que el invariante "1-8 = tipo/color/
+// ocupado" de las celdas del tablero no cambia.
+const POWERUPS = {
+  bomb:     { emoji: '💣', color: '#ff5252', label: 'Bomba' },     // destruye un área 3×3
+  rayo:     { emoji: '⚡', color: '#fff176', label: 'Rayo' },      // limpia toda(s) la(s) fila(s) que toca
+  tinte:    { emoji: '🎨', color: '#e040fb', label: 'Tinte' },     // elimina del tablero un color al azar
+  gravedad: { emoji: '🌀', color: '#8d6e63', label: 'Gravedad' },  // compacta huecos en cada columna
+  congelar: { emoji: '❄️', color: '#4fc3f7', label: 'Congelar' },  // pausa la caída automática 5s
+};
+const POWERUP_LINE_INTERVAL = 5;
 
 const canvas = document.getElementById('board');
 const ctx = canvas.getContext('2d');
@@ -39,17 +55,49 @@ const overlay = document.getElementById('overlay');
 const overlayTitle = document.getElementById('overlay-title');
 const overlayScore = document.getElementById('overlay-score');
 const restartBtn = document.getElementById('restart-btn');
+const themeToggle = document.getElementById('theme-toggle');
+const skinSelect = document.getElementById('skin-select');
 
 let board, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId;
+let gridLineColor;
+let currentSkin;
+let pendingPowerUp, freezeUntil, announceUntil, announceText;
+
+const THEME_KEY = 'tetris-theme';
+const SKIN_KEY = 'tetris-skin';
+const VALID_SKINS = ['retro', 'neon', 'pastel', 'pixel'];
+
+function applyTheme(theme) {
+  document.documentElement.dataset.theme = theme;
+  themeToggle.checked = theme === 'light';
+  gridLineColor = getComputedStyle(document.documentElement).getPropertyValue('--grid-line').trim();
+}
+
+function applySkin(skin) {
+  currentSkin = VALID_SKINS.includes(skin) ? skin : 'retro';
+  document.documentElement.dataset.skin = currentSkin;
+  skinSelect.value = currentSkin;
+  // El skin neon reescribe --grid-line vía CSS (ver style.css); recalcular
+  // aquí igual que en applyTheme para que el cambio de skin se refleje sin
+  // esperar a que se vuelva a tocar el toggle de tema.
+  gridLineColor = getComputedStyle(document.documentElement).getPropertyValue('--grid-line').trim();
+}
 
 function createBoard() {
   return Array.from({ length: ROWS }, () => new Array(COLS).fill(0));
 }
 
 function randomPiece() {
-  const type = Math.floor(Math.random() * 7) + 1;
+  const type = Math.floor(Math.random() * (PIECES.length - 1)) + 1;
   const shape = PIECES[type].map(row => [...row]);
   return { type, shape, x: Math.floor(COLS / 2) - Math.floor(shape[0].length / 2), y: 0 };
+}
+
+function powerUpPiece() {
+  const piece = randomPiece();
+  const keys = Object.keys(POWERUPS);
+  piece.powerUp = keys[Math.floor(Math.random() * keys.length)];
+  return piece;
 }
 
 function collide(shape, ox, oy) {
@@ -93,22 +141,89 @@ function merge() {
         board[current.y + r][current.x + c] = current.shape[r][c];
 }
 
+// Elimina las filas indicadas (índices en `board`, en cualquier orden) y
+// aplica la puntuación/nivel/hito de power-up correspondientes. La usan
+// tanto clearLines (filas completas) como el Rayo (fuerza el borrado de
+// filas aunque no estén completas).
+function clearRows(rowIndices) {
+  const toClear = new Set(rowIndices);
+  const cleared = toClear.size;
+  if (!cleared) return;
+  board = board.filter((_, r) => !toClear.has(r));
+  while (board.length < ROWS) board.unshift(new Array(COLS).fill(0));
+
+  const prevMilestone = Math.floor(lines / POWERUP_LINE_INTERVAL);
+  lines += cleared;
+  if (Math.floor(lines / POWERUP_LINE_INTERVAL) > prevMilestone) pendingPowerUp = true;
+  score += (LINE_SCORES[cleared] || 0) * level;
+  level = Math.floor(lines / 10) + 1;
+  dropInterval = Math.max(100, 1000 - (level - 1) * 90);
+  updateHUD();
+}
+
 function clearLines() {
-  let cleared = 0;
-  for (let r = ROWS - 1; r >= 0; r--) {
-    if (board[r].every(v => v !== 0)) {
-      board.splice(r, 1);
-      board.unshift(new Array(COLS).fill(0));
-      cleared++;
-      r++;
+  const full = [];
+  for (let r = 0; r < ROWS; r++)
+    if (board[r].every(v => v !== 0)) full.push(r);
+  clearRows(full);
+}
+
+// Aplica el efecto de una pieza especial justo después de encajarla
+// (`current` sigue siendo la pieza que acaba de fijarse). Solo muta
+// `board`/`freezeUntil`; nunca escribe un valor de celda fuera de 0-8.
+function resolvePowerUp(type) {
+  const piece = current;
+  switch (type) {
+    case 'bomb': {
+      // Centro de la bomba = centro de las celdas realmente ocupadas (no del
+      // bounding box de la matriz), para que quede centrada en la I tumbada.
+      let minR = Infinity, maxR = -Infinity, minC = Infinity, maxC = -Infinity;
+      for (let r = 0; r < piece.shape.length; r++)
+        for (let c = 0; c < piece.shape[r].length; c++)
+          if (piece.shape[r][c]) {
+            minR = Math.min(minR, r); maxR = Math.max(maxR, r);
+            minC = Math.min(minC, c); maxC = Math.max(maxC, c);
+          }
+      const cy = piece.y + Math.round((minR + maxR) / 2);
+      const cx = piece.x + Math.round((minC + maxC) / 2);
+      for (let r = cy - 1; r <= cy + 1; r++)
+        for (let c = cx - 1; c <= cx + 1; c++)
+          if (r >= 0 && r < ROWS && c >= 0 && c < COLS) board[r][c] = 0;
+      break;
     }
-  }
-  if (cleared) {
-    lines += cleared;
-    score += (LINE_SCORES[cleared] || 0) * level;
-    level = Math.floor(lines / 10) + 1;
-    dropInterval = Math.max(100, 1000 - (level - 1) * 90);
-    updateHUD();
+    case 'rayo': {
+      const rows = new Set();
+      for (let r = 0; r < piece.shape.length; r++)
+        for (let c = 0; c < piece.shape[r].length; c++)
+          if (piece.shape[r][c]) rows.add(piece.y + r);
+      clearRows([...rows]);
+      break;
+    }
+    case 'tinte': {
+      const present = new Set();
+      for (let r = 0; r < ROWS; r++)
+        for (let c = 0; c < COLS; c++)
+          if (board[r][c]) present.add(board[r][c]);
+      if (present.size) {
+        const colors = [...present];
+        const target = colors[Math.floor(Math.random() * colors.length)];
+        for (let r = 0; r < ROWS; r++)
+          for (let c = 0; c < COLS; c++)
+            if (board[r][c] === target) board[r][c] = 0;
+      }
+      break;
+    }
+    case 'gravedad': {
+      for (let c = 0; c < COLS; c++) {
+        const colVals = [];
+        for (let r = 0; r < ROWS; r++) if (board[r][c]) colVals.push(board[r][c]);
+        for (let r = ROWS - 1; r >= 0; r--) board[r][c] = colVals.length ? colVals.pop() : 0;
+      }
+      break;
+    }
+    case 'congelar':
+      freezeUntil = performance.now() + 5000;
+      break;
   }
 }
 
@@ -137,13 +252,20 @@ function softDrop() {
 
 function lockPiece() {
   merge();
+  if (current.powerUp) resolvePowerUp(current.powerUp);
   clearLines();
   spawn();
 }
 
 function spawn() {
   current = next;
-  next = randomPiece();
+  next = pendingPowerUp ? powerUpPiece() : randomPiece();
+  pendingPowerUp = false;
+  if (current.powerUp) {
+    const p = POWERUPS[current.powerUp];
+    announceText = `${p.emoji} ¡Pieza especial: ${p.label}!`;
+    announceUntil = performance.now() + 2500;
+  }
   if (collide(current.shape, current.x, current.y)) {
     endGame();
   }
@@ -156,20 +278,114 @@ function updateHUD() {
   levelEl.textContent = level;
 }
 
-function drawBlock(context, x, y, colorIndex, size, alpha) {
-  if (!colorIndex) return;
-  const color = COLORS[colorIndex];
-  context.globalAlpha = alpha ?? 1;
+// ---- Utilidades de color para los skins pastel/pixel (mezclan el color
+// base de COLORS/overrideColor hacia blanco o negro; todos los colores del
+// juego son hex de 6 dígitos, así que no hace falta soportar otros formatos).
+function mixColor(hex, target, amount) {
+  const num = parseInt(hex.slice(1), 16);
+  const r = (num >> 16) & 255, g = (num >> 8) & 255, b = num & 255;
+  const mix = (c) => Math.round(c + (target - c) * amount);
+  return `rgb(${mix(r)}, ${mix(g)}, ${mix(b)})`;
+}
+const lighten = (hex, amount) => mixColor(hex, 255, amount);
+const darken = (hex, amount) => mixColor(hex, 0, amount);
+
+// Trazado manual de rectángulo redondeado (arcTo), sin depender de
+// CanvasRenderingContext2D.roundRect para mantener compatibilidad amplia.
+function roundedRectPath(context, x, y, w, h, r) {
+  context.beginPath();
+  context.moveTo(x + r, y);
+  context.arcTo(x + w, y, x + w, y + h, r);
+  context.arcTo(x + w, y + h, x, y + h, r);
+  context.arcTo(x, y + h, x, y, r);
+  context.arcTo(x, y, x + w, y, r);
+  context.closePath();
+}
+
+// Retro: comportamiento original, sin cambios (baseline visual del juego).
+function drawBlockRetro(context, x, y, size, color) {
   context.fillStyle = color;
   context.fillRect(x * size + 1, y * size + 1, size - 2, size - 2);
-  // highlight
   context.fillStyle = 'rgba(255,255,255,0.12)';
   context.fillRect(x * size + 1, y * size + 1, size - 2, 4);
+}
+
+// Neon: fondo negro (aplicado vía CSS, ver [data-skin="neon"] en style.css)
+// + glow con shadowBlur del propio color del bloque (o el overrideColor del
+// power-up, ya resuelto en `color`). Gotcha de Canvas2D (ver CLAUDE.md): el
+// shadow persiste entre draws si no se resetea, así que se apaga aquí mismo
+// tras cada bloque en vez de confiar solo en el reset de fin de draw()/
+// drawNext() — si no, dentro del mismo frame todos los bloques dibujados
+// después heredarían el glow del último que lo dejó encendido.
+function drawBlockNeon(context, x, y, size, color) {
+  const px = x * size + 1, py = y * size + 1, w = size - 2, h = size - 2;
+  context.fillStyle = color;
+  context.shadowColor = color;
+  context.shadowBlur = size * 0.6;
+  context.fillRect(px, py, w, h);
+  context.shadowBlur = 0;
+  context.shadowColor = 'transparent';
+  context.fillStyle = 'rgba(255,255,255,0.15)';
+  context.fillRect(px, py, w, 4);
+}
+
+// Pastel: paleta suavizada (mezclada hacia blanco) + esquinas redondeadas.
+// El highlight se recorta (clip) a la silueta redondeada para que no
+// sobresalga en cuadrado por encima de las esquinas curvas.
+function drawBlockPastel(context, x, y, size, color) {
+  const px = x * size + 1, py = y * size + 1, w = size - 2, h = size - 2;
+  const radius = Math.min(6, w / 3, h / 3);
+  roundedRectPath(context, px, py, w, h, radius);
+  context.fillStyle = lighten(color, 0.45);
+  context.fill();
+  context.save();
+  roundedRectPath(context, px, py, w, h, radius);
+  context.clip();
+  context.fillStyle = 'rgba(255,255,255,0.25)';
+  context.fillRect(px, py, w, 4);
+  context.restore();
+}
+
+// Pixel art: relleno base + textura procedural en forma de damero 3×3 de
+// sub-cuadros ligeramente más oscuros (sin assets/imagenes, todo dibujado
+// con primitivas de canvas).
+function drawBlockPixel(context, x, y, size, color) {
+  const px = x * size + 1, py = y * size + 1, w = size - 2, h = size - 2;
+  context.fillStyle = color;
+  context.fillRect(px, py, w, h);
+  context.fillStyle = darken(color, 0.28);
+  const cell = w / 3;
+  for (let gr = 0; gr < 3; gr++) {
+    for (let gc = 0; gc < 3; gc++) {
+      if ((gr + gc) % 2 === 0) context.fillRect(px + gc * cell, py + gr * cell, cell, cell);
+    }
+  }
+  context.fillStyle = 'rgba(255,255,255,0.12)';
+  context.fillRect(px, py, w, 4);
+}
+
+function drawBlock(context, x, y, colorIndex, size, alpha, overrideColor) {
+  if (!colorIndex) return;
+  const color = overrideColor || COLORS[colorIndex];
+  context.globalAlpha = alpha ?? 1;
+  switch (currentSkin) {
+    case 'neon':
+      drawBlockNeon(context, x, y, size, color);
+      break;
+    case 'pastel':
+      drawBlockPastel(context, x, y, size, color);
+      break;
+    case 'pixel':
+      drawBlockPixel(context, x, y, size, color);
+      break;
+    default:
+      drawBlockRetro(context, x, y, size, color);
+  }
   context.globalAlpha = 1;
 }
 
 function drawGrid() {
-  ctx.strokeStyle = '#22222e';
+  ctx.strokeStyle = gridLineColor;
   ctx.lineWidth = 0.5;
   for (let c = 1; c < COLS; c++) {
     ctx.beginPath();
@@ -202,9 +418,43 @@ function draw() {
         drawBlock(ctx, current.x + c, gy + r, current.shape[r][c], BLOCK, 0.2);
 
   // current piece
+  const glow = current.powerUp ? POWERUPS[current.powerUp].color : null;
+  if (glow) { ctx.shadowColor = glow; ctx.shadowBlur = 14; }
   for (let r = 0; r < current.shape.length; r++)
     for (let c = 0; c < current.shape[r].length; c++)
-      drawBlock(ctx, current.x + c, current.y + r, current.shape[r][c], BLOCK);
+      drawBlock(ctx, current.x + c, current.y + r, current.shape[r][c], BLOCK, 1, glow);
+  ctx.shadowBlur = 0;
+
+  // indicador de congelación
+  if (freezeUntil > 0) {
+    const remaining = Math.max(0, (freezeUntil - performance.now()) / 1000);
+    ctx.fillStyle = 'rgba(0,0,0,0.55)';
+    ctx.fillRect(4, 4, 168, 26);
+    ctx.fillStyle = POWERUPS.congelar.color;
+    ctx.font = '16px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText(`❄ Congelado ${remaining.toFixed(1)}s`, 10, 22);
+  }
+
+  // aviso grande y temporal cuando aparece una pieza especial (2.5s), para
+  // que el power-up sea imposible de pasar por alto además del brillo en
+  // la vista previa.
+  if (announceUntil > 0) {
+    if (performance.now() >= announceUntil) {
+      announceUntil = 0;
+    } else {
+      ctx.font = 'bold 18px sans-serif';
+      const textWidth = ctx.measureText(announceText).width;
+      const boxW = textWidth + 28, boxH = 36;
+      const boxX = (canvas.width - boxW) / 2, boxY = 50;
+      ctx.fillStyle = 'rgba(0,0,0,0.8)';
+      ctx.fillRect(boxX, boxY, boxW, boxH);
+      ctx.fillStyle = '#ffffff';
+      ctx.textAlign = 'center';
+      ctx.fillText(announceText, canvas.width / 2, boxY + 24);
+      ctx.textAlign = 'left';
+    }
+  }
 }
 
 function drawNext() {
@@ -213,9 +463,24 @@ function drawNext() {
   const shape = next.shape;
   const offX = Math.floor((4 - shape[0].length) / 2);
   const offY = Math.floor((4 - shape.length) / 2);
+  const glow = next.powerUp ? POWERUPS[next.powerUp].color : null;
+  if (glow) { nextCtx.shadowColor = glow; nextCtx.shadowBlur = 10; }
   for (let r = 0; r < shape.length; r++)
     for (let c = 0; c < shape[r].length; c++)
-      drawBlock(nextCtx, offX + c, offY + r, shape[r][c], NB);
+      drawBlock(nextCtx, offX + c, offY + r, shape[r][c], NB, 1, glow);
+  nextCtx.shadowBlur = 0;
+  if (next.powerUp) {
+    // Fondo opaco + fillStyle explícito: sin esto el emoji hereda el
+    // fillStyle translúcido que deja el último drawBlock (el highlight
+    // "rgba(255,255,255,0.12)"), y en fuentes sin glifo de color a todo
+    // color se ve casi invisible.
+    nextCtx.fillStyle = 'rgba(0,0,0,0.55)';
+    nextCtx.fillRect(0, 0, 28, 28);
+    nextCtx.fillStyle = '#ffffff';
+    nextCtx.font = 'bold 20px sans-serif';
+    nextCtx.textAlign = 'left';
+    nextCtx.fillText(POWERUPS[next.powerUp].emoji, 3, 22);
+  }
 }
 
 function endGame() {
@@ -243,16 +508,24 @@ function togglePause() {
 function loop(ts) {
   const dt = ts - lastTime;
   lastTime = ts;
-  dropAccum += dt;
-  if (dropAccum >= dropInterval) {
+  // Congelar solo pausa la caída automática; mover/rotar/soft-drop/hard-drop
+  // del jugador siguen funcionando con normalidad durante los 5s.
+  if (freezeUntil > 0 && ts < freezeUntil) {
     dropAccum = 0;
-    if (!collide(current.shape, current.x, current.y + 1)) {
-      current.y++;
-    } else {
-      lockPiece();
+  } else {
+    freezeUntil = 0;
+    dropAccum += dt;
+    if (dropAccum >= dropInterval) {
+      dropAccum = 0;
+      if (!collide(current.shape, current.x, current.y + 1)) {
+        current.y++;
+      } else {
+        lockPiece();
+      }
     }
   }
   draw();
+  if (gameOver) return; // lockPiece() pudo terminar el juego en este mismo frame; no programar otro
   animId = requestAnimationFrame(loop);
 }
 
@@ -266,6 +539,10 @@ function init() {
   dropInterval = 1000;
   dropAccum = 0;
   lastTime = performance.now();
+  pendingPowerUp = false;
+  freezeUntil = 0;
+  announceUntil = 0;
+  announceText = '';
   next = randomPiece();
   spawn();
   updateHUD();
@@ -301,4 +578,18 @@ document.addEventListener('keydown', e => {
 
 restartBtn.addEventListener('click', init);
 
+themeToggle.addEventListener('change', () => {
+  const theme = themeToggle.checked ? 'light' : 'dark';
+  localStorage.setItem(THEME_KEY, theme);
+  applyTheme(theme);
+});
+
+skinSelect.addEventListener('change', () => {
+  const skin = skinSelect.value;
+  localStorage.setItem(SKIN_KEY, skin);
+  applySkin(skin);
+});
+
+applyTheme(localStorage.getItem(THEME_KEY) === 'light' ? 'light' : 'dark');
+applySkin(localStorage.getItem(SKIN_KEY) || 'retro');
 init();
