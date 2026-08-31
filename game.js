@@ -39,8 +39,35 @@ const overlay = document.getElementById('overlay');
 const overlayTitle = document.getElementById('overlay-title');
 const overlayScore = document.getElementById('overlay-score');
 const restartBtn = document.getElementById('restart-btn');
+const pauseMenu = document.getElementById('pause-menu');
+const gameoverMenu = document.getElementById('gameover-menu');
+const resumeBtn = document.getElementById('resume-btn');
+const pauseRestartBtn = document.getElementById('pause-restart-btn');
+const controlsToggleBtn = document.getElementById('controls-toggle-btn');
+const controlsList = document.getElementById('controls-list');
+const startLevelSelect = document.getElementById('start-level-select');
 
-let board, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId;
+let board, current, next, score, lines, level, startLevel, paused, gameOver, lastTime, dropAccum, dropInterval, animId;
+
+// Lee el nivel inicial guardado en localStorage (1–10, por defecto 1).
+function readStartLevel() {
+  const val = parseInt(localStorage.getItem('tetris.startLevel'), 10);
+  if (isNaN(val) || val < 1) return 1;
+  return Math.min(val, 10);
+}
+
+// Verifica si el evento se originó en un control del menú de pausa (botón, select).
+function isMenuInteraction(e) {
+  const target = e.target;
+  return target && (target.closest('#pause-menu') || target.closest('#gameover-menu'));
+}
+
+// Quita el foco de botones/select para que no disparen movimientos al reanudar.
+function blurActive() {
+  if (document.activeElement && document.activeElement.blur) {
+    document.activeElement.blur();
+  }
+}
 
 function createBoard() {
   return Array.from({ length: ROWS }, () => new Array(COLS).fill(0));
@@ -106,7 +133,8 @@ function clearLines() {
   if (cleared) {
     lines += cleared;
     score += (LINE_SCORES[cleared] || 0) * level;
-    level = Math.floor(lines / 10) + 1;
+    // El nivel parte desde el nivel inicial elegido y sube cada 10 líneas.
+    level = startLevel + Math.floor(lines / 10);
     dropInterval = Math.max(100, 1000 - (level - 1) * 90);
     updateHUD();
   }
@@ -223,6 +251,8 @@ function endGame() {
   cancelAnimationFrame(animId);
   overlayTitle.textContent = 'GAME OVER';
   overlayScore.textContent = `Puntuación: ${score.toLocaleString()}`;
+  pauseMenu.classList.add('hidden');
+  gameoverMenu.classList.remove('hidden');
   overlay.classList.remove('hidden');
 }
 
@@ -230,12 +260,15 @@ function togglePause() {
   if (gameOver) return;
   paused = !paused;
   if (!paused) {
+    pauseMenu.classList.add('hidden');
+    overlay.classList.add('hidden');
+    blurActive();
     lastTime = performance.now();
     loop(lastTime);
   } else {
     cancelAnimationFrame(animId);
-    overlayTitle.textContent = 'PAUSA';
-    overlayScore.textContent = '';
+    gameoverMenu.classList.add('hidden');
+    pauseMenu.classList.remove('hidden');
     overlay.classList.remove('hidden');
   }
 }
@@ -260,22 +293,34 @@ function init() {
   board = createBoard();
   score = 0;
   lines = 0;
-  level = 1;
+  startLevel = readStartLevel();
+  level = startLevel;
+  startLevelSelect.value = String(startLevel);
   paused = false;
   gameOver = false;
-  dropInterval = 1000;
+  dropInterval = Math.max(100, 1000 - (level - 1) * 90);
   dropAccum = 0;
   lastTime = performance.now();
   next = randomPiece();
   spawn();
   updateHUD();
+  pauseMenu.classList.add('hidden');
+  gameoverMenu.classList.add('hidden');
   overlay.classList.add('hidden');
+  blurActive();
   cancelAnimationFrame(animId);
   animId = requestAnimationFrame(loop);
 }
 
 document.addEventListener('keydown', e => {
-  if (e.code === 'KeyP') { togglePause(); return; }
+  // P / Escape siempre funciona para pausar/reanudar.
+  if (e.code === 'KeyP' || e.code === 'Escape') {
+    togglePause();
+    return;
+  }
+  // Si la interacción es con los controles del menú (botones, select), no procesar como juego.
+  if (isMenuInteraction(e)) return;
+  // Con el menú abierto (pausa) o fin de partida, no se mueven piezas.
   if (paused || gameOver) return;
   switch (e.code) {
     case 'ArrowLeft':
@@ -300,5 +345,13 @@ document.addEventListener('keydown', e => {
 });
 
 restartBtn.addEventListener('click', init);
+resumeBtn.addEventListener('click', togglePause);
+pauseRestartBtn.addEventListener('click', init);
+controlsToggleBtn.addEventListener('click', () => {
+  controlsList.classList.toggle('hidden');
+});
+startLevelSelect.addEventListener('change', () => {
+  localStorage.setItem('tetris.startLevel', startLevelSelect.value);
+});
 
 init();
