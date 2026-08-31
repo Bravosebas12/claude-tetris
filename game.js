@@ -57,6 +57,7 @@ const overlayScore = document.getElementById('overlay-score');
 const restartBtn = document.getElementById('restart-btn');
 const themeToggle = document.getElementById('theme-toggle');
 const highscoreListEl = document.getElementById('highscore-list');
+const overlayHighscores = document.getElementById('overlay-highscores');
 const overlayHighscoreListEl = document.getElementById('overlay-highscore-list');
 const bestComboEl = document.getElementById('best-combo');
 const maxLinesEl = document.getElementById('max-lines');
@@ -95,7 +96,10 @@ function loadHighscores() {
 }
 
 function saveHighscores() {
-  localStorage.setItem(HIGHSCORES_KEY, JSON.stringify(highscores));
+  // try/catch: setItem puede lanzar (Safari en modo privado, cuota superada,
+  // iframe sin acceso a storage...). Sin esto una excepción aquí interrumpe
+  // lockPiece() antes de que llegue a spawn() y el juego se queda colgado.
+  try { localStorage.setItem(HIGHSCORES_KEY, JSON.stringify(highscores)); } catch (e) { /* almacenamiento no disponible: se ignora */ }
 }
 
 function loadStoredNumber(key) {
@@ -104,11 +108,11 @@ function loadStoredNumber(key) {
 }
 
 function saveBestCombo() {
-  localStorage.setItem(BEST_COMBO_KEY, String(bestCombo));
+  try { localStorage.setItem(BEST_COMBO_KEY, String(bestCombo)); } catch (e) { /* almacenamiento no disponible: se ignora */ }
 }
 
 function saveMaxLines() {
-  localStorage.setItem(MAX_LINES_KEY, String(maxLines));
+  try { localStorage.setItem(MAX_LINES_KEY, String(maxLines)); } catch (e) { /* almacenamiento no disponible: se ignora */ }
 }
 
 function qualifiesForHighscore(s) {
@@ -162,6 +166,10 @@ function submitHighscore() {
   if (!awaitingNameEntry) return;
   awaitingNameEntry = false;
   const name = (nameInput.value.trim() || 'Jugador').slice(0, 12);
+  // Re-lee de localStorage justo antes de mezclar: si otra pestaña guardó una
+  // entrada mientras esta partida estaba en curso, no la pisamos con nuestra
+  // copia en memoria (posiblemente desactualizada).
+  highscores = loadHighscores();
   highscores.push({ name, score });
   highscores.sort((a, b) => b.score - a.score);
   highscores = highscores.slice(0, 5);
@@ -517,6 +525,10 @@ function endGame() {
     awaitingNameEntry = false;
     nameEntry.classList.add('hidden');
   }
+  // El TOP 5 solo debe verse en el overlay de Game Over, no en el de PAUSA
+  // (que reutiliza el mismo #overlay pero no llama a esta función) — se
+  // vuelve a ocultar en init() al reiniciar.
+  overlayHighscores.classList.remove('hidden');
   renderHighscores();
 }
 
@@ -575,6 +587,7 @@ function init() {
   combo = 0;
   awaitingNameEntry = false;
   nameEntry.classList.add('hidden');
+  overlayHighscores.classList.add('hidden');
   renderHighscores();
   next = randomPiece();
   spawn();
@@ -627,7 +640,16 @@ nameInput.addEventListener('blur', submitHighscore);
 saveScoreBtn.addEventListener('click', submitHighscore);
 
 resetRecordsBtn.addEventListener('click', () => {
-  if (!confirm('¿Seguro que quieres borrar los records?')) return;
+  const confirmed = confirm('¿Seguro que quieres borrar los records?');
+  // confirm() bloquea el hilo principal (y por tanto rAF) mientras está
+  // abierto; el botón es alcanzable con una partida en curso, así que sin
+  // resembrar lastTime/dropAccum el próximo tick de loop() vería el tiempo
+  // real transcurrido como un `dt` enorme y provocaría una caída/lock
+  // instantáneo de la pieza actual en cuanto se cierre el diálogo (mismo
+  // motivo por el que togglePause() resiembra lastTime al reanudar).
+  lastTime = performance.now();
+  dropAccum = 0;
+  if (!confirmed) return;
   highscores = [];
   bestCombo = 0;
   maxLines = 0;

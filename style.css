@@ -389,6 +389,10 @@ kbd {
   max-width: 220px;
 }
 
+.overlay-highscores.hidden {
+  display: none;
+}
+
 .overlay-highscores .label {
   text-align: center;
 }
