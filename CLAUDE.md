@@ -26,7 +26,7 @@ Three files, no modules:
 All mutable game state lives in one set of module-level `let` bindings declared at the top of `game.js` (`board, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId`) — not encapsulated in a class or object. `init()` resets all of them and kicks off the RAF loop; `restartBtn` calls `init()` directly.
 
 ### Board/piece model
-- `board` is a `ROWS × COLS` matrix; each cell is `0` (empty) or `1–7` (piece-color index into `COLORS`).
+- `board` is a `ROWS × COLS` matrix; each cell is `0` (empty) or `1–8` (piece-color index into `COLORS`, index 8 = the non-standard "ring" piece).
 - Pieces (`PIECES`) are fixed square matrices; rotation is done by transposing (`rotateCW`), not by lookup tables.
 - `current`/`next` pieces are `{ type, shape, x, y }`.
 
@@ -38,4 +38,4 @@ Collision (`collide`), rotation with wall-kicks (`tryRotate`, kick offsets `[0,-
 Input is a single `keydown` listener switching on `e.code` (arrows + `KeyX` rotate + `Space` hard drop + `KeyP` pause), gated by `paused`/`gameOver`.
 
 ### Tunable constants (top of `game.js`)
-`COLS`, `ROWS`, `BLOCK`, `COLORS`, `LINE_SCORES`, initial `dropInterval`. If `COLS`/`ROWS`/`BLOCK` change, also update the `#board` canvas `width`/`height` in `index.html` to match (`COLS×BLOCK` by `ROWS×BLOCK`).
+`COLS`, `ROWS`, `BLOCK`, `COLORS`, `LINE_SCORES`, initial `dropInterval`, `RING_CHANCE` (spawn probability of the 3×3 hollow-center "ring" piece, index `RING`/8 in `PIECES`/`COLORS`). If `COLS`/`ROWS`/`BLOCK` change, also update the `#board` canvas `width`/`height` in `index.html` to match (`COLS×BLOCK` by `ROWS×BLOCK`).
