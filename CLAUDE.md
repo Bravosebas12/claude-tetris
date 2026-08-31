@@ -48,6 +48,53 @@ mechanism also lets the ring be placed straddling a single-cell protrusion
 already on the board (the hole simply skips the collision check there), same
 as the empty corners of T/S/Z/J/L already do.
 
+### Power-ups
+
+`POWERUPS` (bomb, rayo, tinte, gravedad, congelar) never touch the cell
+invariant above: a power-up is a plain `.powerUp` string tacked onto a
+normal piece object (`powerUpPiece()` wraps `randomPiece()`), not a new
+board-cell value. It only changes two things: `draw()`/`drawNext()` render
+that one piece with an override glow color (`drawBlock`'s optional
+`overrideColor` param) instead of its real `COLORS[type]`, and `lockPiece()`
+calls `resolvePowerUp()` right after `merge()`, which mutates `board` (or
+sets `freezeUntil`) and then falls through to the normal `clearLines()` —
+so once locked, a power-up piece's cells are indistinguishable from a
+regular piece of the same shape.
+
+Spawn timing: `clearRows()` (the shared row-removal engine behind both
+`clearLines()` and Rayo, see below) sets `pendingPowerUp = true` the moment
+`lines` crosses a multiple of `POWERUP_LINE_INTERVAL`. `spawn()` consumes
+that flag for the piece it's about to generate as the *new* `next` — so the
+power-up is visible one piece early, in the preview, before it becomes
+`current`.
+
+Rayo force-clears whatever rows its cells touch via `clearRows()` directly,
+bypassing the "row must be full" check in `clearLines()`. Because
+`lockPiece()` still calls `clearLines()` unconditionally afterward, a single
+lock can fire `clearRows()` twice (Rayo's forced row, then any additional
+rows that happen to be full) — each call scores/levels independently rather
+than combining into one bigger combo.
+
+`congelar` doesn't touch `board` at all: it sets `freezeUntil`, and `loop()`
+skips accumulating `dropAccum` while `performance.now() < freezeUntil`.
+Player input (move/rotate/soft/hard-drop) is untouched by this — only the
+automatic gravity tick pauses.
+
+**Visibility gotcha:** the glow (`shadowColor`/`shadowBlur` on the falling
+piece) and the emoji in the preview are easy to miss — a 120×120 preview
+canvas is small, and `Canvas2D` state (`fillStyle`, `font`, `shadowBlur`…)
+persists frame to frame, so any code that sets it and doesn't reset it
+leaks into the next thing drawn (the preview emoji originally inherited
+`drawBlock`'s leftover translucent-white highlight `fillStyle` and was
+nearly invisible — fixed by giving the emoji its own opaque backdrop +
+explicit `fillStyle`/`font`/`textAlign` right before `fillText`, every
+time). Because of that, `spawn()` also sets `announceUntil`/`announceText`
+whenever the piece it just promoted to `current` has `.powerUp` set, and
+`draw()` renders a 2.5s centered banner on the main board — an unmissable
+confirmation independent of the subtler preview glow. Any new canvas text
+must set its own `fillStyle`/`font`/`textAlign` rather than assume a
+default; nothing resets them between draws.
+
 ### Rotation
 
 `rotateCW()` is a plain transpose-and-reverse over the square matrix; no rotation-state index is tracked. `tryRotate()` implements a simplified kick table — horizontal offsets `[0, -1, 1, -2, 2]` only, not SRS — and abandons the rotation if all five fail.
@@ -57,4 +104,4 @@ as the empty corners of T/S/Z/J/L already do.
 - `COLS`, `ROWS`, `BLOCK` in `game.js` must match the hardcoded `width`/`height` on `<canvas id="board">` in `index.html` (`COLS × BLOCK` by `ROWS × BLOCK`).
 - `drawNext()` centers the preview inside a fixed 4×4 grid at 30px, sized to the 120×120 `#next-canvas`.
 - `game.js` resolves every DOM node at top level, so the `<script>` must stay at the end of `<body>` with no `defer`.
-- Progression is derived, not incremental: `level = floor(lines / 10) + 1` and `dropInterval = max(100, 1000 - (level - 1) * 90)`, both recomputed in `clearLines()`.
+- Progression is derived, not incremental: `level = floor(lines / 10) + 1` and `dropInterval = max(100, 1000 - (level - 1) * 90)`, both recomputed in `clearRows()` (the shared helper `clearLines()` and Rayo both funnel through).

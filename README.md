@@ -17,6 +17,7 @@ Implementación del clásico **Tetris** en JavaScript vanilla, usando HTML5 Canv
     - [Opción 1: abrir el archivo directamente](#opción-1-abrir-el-archivo-directamente)
     - [Opción 2: servidor local (recomendado)](#opción-2-servidor-local-recomendado)
   - [Controles](#controles)
+  - [Power-ups](#power-ups)
   - [Cómo funciona](#cómo-funciona)
     - [1. `index.html`](#1-indexhtml)
     - [2. `style.css`](#2-stylecss)
@@ -41,6 +42,7 @@ Es una versión jugable del Tetris clásico con todas las mecánicas que esperar
 - **Vista previa** de la siguiente pieza.
 - **Sistema de puntuación** clásico de Tetris (100 / 300 / 500 / 800 multiplicado por nivel).
 - **Niveles** que aumentan cada 10 líneas y aceleran la caída.
+- **Power-ups aleatorios**: cada 5 líneas eliminadas, la siguiente pieza especial trae un efecto (bomba, rayo, tinte, gravedad o congelar).
 - **Pausa** y **Game Over** con opción de reinicio.
 
 ---
@@ -88,6 +90,22 @@ Después abre `http://localhost:8000` en el navegador.
 
 ---
 
+## Power-ups
+
+Cada **5 líneas eliminadas** (acumuladas), la pieza que se muestra en la vista previa llega con un brillo especial y un emoji en la esquina: es una pieza especial. En cuanto se convierte en la pieza que controlas, además aparece durante 2.5s un aviso grande centrado en el tablero (p. ej. "💣 ¡Pieza especial: Bomba!"), para que no pase desapercibida. Su forma y color base son normales, solo cambia el efecto que dispara **al encajarla**:
+
+| Power-up      | Efecto |
+| ------------- | ------ |
+| 💣 Bomba      | Destruye un área de 3×3 celdas centrada en la pieza. |
+| ⚡ Rayo        | Limpia por completo la(s) fila(s) que la pieza toca, aunque no estén llenas. |
+| 🎨 Tinte      | Elimina del tablero todos los bloques de un color elegido al azar entre los presentes. |
+| 🌀 Gravedad   | Compacta cada columna hacia abajo, eliminando los huecos bajo los bloques. |
+| ❄️ Congelar   | Pausa la caída automática durante 5 segundos (puedes seguir moviendo, rotando y bajando la pieza a mano). |
+
+Ninguno de estos efectos es necesariamente "bueno": la Bomba, el Rayo y el Tinte también pueden destruir estructura que ya habías construido. Es aleatorio a propósito.
+
+---
+
 ## Cómo funciona
 
 El juego se compone de tres archivos que cooperan:
@@ -113,10 +131,11 @@ Contiene toda la lógica del juego. A grandes rasgos:
 - **Detección de colisiones** (`collide`): comprueba que ninguna celda de la pieza salga del tablero ni se solape con bloques ya fijados.
 - **Wall kicks** (`tryRotate`): si la rotación choca, intenta desplazar la pieza ±1 y ±2 columnas antes de descartar el giro.
 - **Game loop** (`loop`): basado en `requestAnimationFrame`, acumula el tiempo transcurrido y baja la pieza una fila cuando se supera `dropInterval`.
-- **Limpieza de líneas** (`clearLines`): recorre el tablero de abajo hacia arriba; cada fila completa se elimina y se inserta una vacía en la cima.
+- **Limpieza de líneas** (`clearRows`/`clearLines`): `clearRows` elimina las filas indicadas y actualiza puntuación/nivel; `clearLines` la llama con las filas que están completas. El Rayo también usa `clearRows`, pero forzando filas que no tienen por qué estar llenas.
 - **Puntuación**: usa la tabla clásica `[0, 100, 300, 500, 800]` multiplicada por el nivel actual; el hard drop suma 2 puntos por celda recorrida y el soft drop 1 punto por fila.
 - **Nivel y velocidad**: el nivel sube cada 10 líneas; la velocidad de caída se calcula como `max(100, 1000 − (level − 1) × 90)` milisegundos.
 - **Ghost piece** (`ghostY`): proyecta la posición final de la pieza actual hacia abajo y la dibuja con `globalAlpha = 0.2`.
+- **Power-ups** (`resolvePowerUp`): cada 5 líneas eliminadas marca la siguiente pieza como especial (`powerUpPiece`); al encajarla, `lockPiece` aplica su efecto sobre `board` (o activa `freezeUntil`) antes de la limpieza de líneas normal.
 
 ### Flujo del juego
 
@@ -176,6 +195,8 @@ Algunos parámetros fáciles de tunear en `game.js`:
 | `COLORS`       | Paleta de colores por tipo de pieza      | 8 colores             |
 | `LINE_SCORES`  | Puntos por 1, 2, 3 o 4 líneas eliminadas | `[0,100,300,500,800]` |
 | `dropInterval` | Velocidad inicial de caída en ms         | `1000`                |
+| `POWERUPS`     | Efectos disponibles y su color/emoji     | 5 power-ups            |
+| `POWERUP_LINE_INTERVAL` | Líneas eliminadas entre power-ups | `5`                    |
 
 > Si cambias `COLS`, `ROWS` o `BLOCK`, recuerda ajustar también `width` y `height` del `<canvas id="board">` en `index.html` para que coincida (`COLS × BLOCK` × `ROWS × BLOCK`).
 
