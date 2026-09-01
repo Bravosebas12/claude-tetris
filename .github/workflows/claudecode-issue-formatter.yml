@@ -62,3 +62,6 @@ jobs:
                If `--edit-last` fails (e.g. no prior comment by this actor), fall back to posting a new comment.
 
             Be concise, helpful, and friendly. Do not over-engineer the response.
+
+            The comment body must be written in GitHub-flavored Markdown so it renders correctly
+            on GitHub (headings, bold text, and lists using proper Markdown syntax).
