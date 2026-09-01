@@ -1,0 +1,168 @@
+name: Claude Issue Triage
+
+on:
+  issues:
+    types: [opened, edited]
+
+concurrency:
+  group: issue-triage-${{ github.event.issue.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  issues: write
+  id-token: write
+
+jobs:
+  triage:
+    runs-on: ubuntu-latest
+    if: |
+      github.event.issue.state == 'open' &&
+      github.event.issue.user.type != 'Bot' &&
+      (github.event.action == 'opened' || github.event.changes.title != null || github.event.changes.body != null)
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Sync label taxonomy
+        run: |
+          set -e
+
+          create_label() {
+            gh label create "$1" --color "$2" --description "$3" --force
+          }
+
+          # type/*
+          create_label "type/bug"      "d73a4a" "Something isn't working as intended"
+          create_label "type/feature"  "a2eeef" "New capability or enhancement request"
+          create_label "type/docs"     "0075ca" "Documentation only"
+          create_label "type/refactor" "cfd3d7" "Code change with no behavior change"
+          create_label "type/question" "d876e3" "A question, not an actionable change"
+
+          # area/*
+          create_label "area/gameplay"  "5319e7" "Collision, rotation/wall kicks, spawn, lock, game loop"
+          create_label "area/rendering" "1d76db" "Canvas drawing, draw(), drawBlock(), ghost piece"
+          create_label "area/input"     "0e8a16" "Keyboard input handling"
+          create_label "area/ui"        "fbca04" "index.html / style.css, non-canvas UI"
+          create_label "area/scoring"   "c5def5" "clearLines(), LINE_SCORES, level, dropInterval"
+          create_label "area/build"     "bfd4f2" "Workflows, tooling, repo structure"
+
+          # priority/*
+          create_label "priority/high"   "b60205" "Should be addressed soon"
+          create_label "priority/medium" "e99695" "Normal priority"
+          create_label "priority/low"    "f9d0c4" "Low priority / nice to have"
+
+          # complexity/*
+          create_label "complexity/small"  "c2e0c6" "Small, isolated change"
+          create_label "complexity/medium" "fef2c0" "Moderate change, a few functions/files"
+          create_label "complexity/large"  "f7c6c7" "Large or cross-cutting change"
+
+      - name: Run Claude Code triage
+        id: claude-triage
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: |
+            REPO: ${{ github.repository }}
+            ISSUE NUMBER: ${{ github.event.issue.number }}
+            EVENT ACTION: ${{ github.event.action }}
+            ISSUE TITLE: ${{ github.event.issue.title }}
+            ISSUE AUTHOR: ${{ github.event.issue.user.login }}
+            ISSUE BODY:
+            ${{ github.event.issue.body }}
+
+            You are triaging this GitHub issue for a small vanilla-JS Tetris game (no build step,
+            no tests — see CLAUDE.md at the repo root for the full architecture). Your job has two
+            outputs: (1) correct labels, and (2) a technical diagnosis comment that is detailed
+            enough for a future coding session to implement the fix/feature directly from it,
+            without re-investigating the issue from scratch.
+
+            ## Step 1 — Read context
+            - Read CLAUDE.md first for the architecture, key functions, and tunable constants.
+            - Read the relevant source files (game.js, index.html, style.css) for the parts of the
+              code this issue actually touches. Do not guess function names or line numbers you
+              have not read.
+            - Run `gh label list --limit 100` to see the exact labels available. Do not invent
+              label names — only use ones that exist.
+            - Run `gh search issues --repo ${{ github.repository }} --state all "<keywords from the title>"`
+              to check for likely duplicates. If you find a clear duplicate, mention it in the
+              diagnosis (do not close or comment-only anything else, and do not modify other issues).
+
+            ## Step 2 — Classify and apply labels
+            Choose exactly one `type/*`, one `priority/*`, one `complexity/*`, and one or more
+            `area/*` labels from the taxonomy (type/bug, type/feature, type/docs, type/refactor,
+            type/question; area/gameplay, area/rendering, area/input, area/ui, area/scoring,
+            area/build; priority/high, priority/medium, priority/low; complexity/small,
+            complexity/medium, complexity/large). Ignore the repo's old default labels (bug,
+            enhancement, documentation, question, help wanted, good first issue, duplicate,
+            invalid, wontfix) — do not add or remove those.
+
+            Apply with:
+            `gh issue edit ${{ github.event.issue.number }} --add-label "..." --remove-label "..."`
+
+            This may be a re-analysis of an edited issue: first check the issue's current labels
+            (`gh issue view ${{ github.event.issue.number }} --json labels`) and correct any
+            triage labels (type/*, area/*, priority/*, complexity/*) that no longer fit, rather
+            than only adding new ones.
+
+            ## Step 3 — Write the diagnosis
+            Write the comment body (in English) to a temp file, e.g. /tmp/triage-body.md, using
+            EXACTLY this structure, as level-2 markdown headings:
+
+            <!-- claude-triage -->
+            ## Summary
+            ## Classification
+            ## Affected code
+            ## Current vs expected behavior
+            ## Root cause hypothesis
+            ## Reproduction steps
+            ## Proposed approach
+            ## Risks & side effects
+            ## Acceptance criteria
+            ## Open questions
+
+            Content guidelines per section:
+            - The FIRST LINE of the file must be exactly `<!-- claude-triage -->` (an HTML
+              comment marker, invisible when rendered) — this is required, do not omit or alter it.
+            - **Summary**: the problem restated in 2-3 sentences.
+            - **Classification**: state the type/priority/complexity/area labels you applied.
+            - **Affected code**: concrete files and functions (e.g. `collide()`, `tryRotate()`,
+              `lockPiece()`, `clearLines()`, `draw()`, `ghostY()`), with `game.js:LINE` references
+              you actually verified by reading the file.
+            - **Current vs expected behavior**: for bugs, what happens vs. what should happen;
+              for features, current behavior vs. proposed behavior.
+            - **Root cause hypothesis**: your best hypothesis, clearly labeled as a hypothesis; if
+              you cannot determine it from the issue alone, say "Not determinable from the issue
+              as written" and explain what's missing.
+            - **Reproduction steps**: if applicable (bugs); omit content and write "N/A" for
+              feature requests.
+            - **Proposed approach**: concrete implementation steps referencing the functions/files
+              named in "Affected code".
+            - **Risks & side effects**: call out relevant repo-specific gotchas — in particular, if
+              the change touches COLS/ROWS/BLOCK, note that index.html's `<canvas id="board">`
+              width/height attributes must be updated to match (COLS × BLOCK by ROWS × BLOCK), per
+              CLAUDE.md.
+            - **Acceptance criteria**: a verifiable checklist.
+            - **Open questions**: what's missing from the issue to make it fully implementable, if
+              anything (write "None" if nothing is missing).
+
+            Be honest about uncertainty — flag hypotheses as hypotheses, don't fabricate line
+            numbers or function names you haven't read in the actual files.
+
+            ## Step 4 — Post or update the comment
+            Check for an existing triage comment:
+            `gh api repos/${{ github.repository }}/issues/${{ github.event.issue.number }}/comments --jq '.[] | select(.body | startswith("<!-- claude-triage -->")) | .id'`
+
+            - If an id is returned, update it in place:
+              `gh api -X PATCH repos/${{ github.repository }}/issues/comments/<id> -F body=@/tmp/triage-body.md`
+            - If no id is returned (first analysis), create a new comment:
+              `gh issue comment ${{ github.event.issue.number }} --body-file /tmp/triage-body.md`
+
+            Never create a second triage comment when one already exists — always update it.
+          claude_args: |
+            --max-turns 25
+            --allowedTools "Bash(gh label list:*),Bash(gh label create:*),Bash(gh issue view:*),Bash(gh issue edit:*),Bash(gh issue comment:*),Bash(gh search issues:*),Bash(gh api:*),Read,Grep,Glob,Write"
