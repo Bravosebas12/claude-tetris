@@ -35,6 +35,7 @@ Es una versión jugable del Tetris clásico con todas las mecánicas que esperar
 
 - Tablero de **10 × 20** celdas.
 - Las **7 piezas estándar** (I, O, T, S, Z, J, L) con colores diferenciados.
+- Pieza especial de reto: la **tuerca** (3×3, anillo metálico con agujero central real). Si tapa su propio hueco al caer, esa fila queda bloqueada hasta limpiar lo que tiene encima.
 - **Rotación** con _wall kicks_ básicos (pequeños desplazamientos para que la pieza pueda rotar pegada a la pared).
 - **Soft drop** (bajada acelerada) y **hard drop** (caída instantánea).
 - **Pieza fantasma** (_ghost piece_): muestra dónde aterrizará la pieza actual.
@@ -173,7 +174,7 @@ Algunos parámetros fáciles de tunear en `game.js`:
 | `COLS`         | Columnas del tablero                     | `10`                  |
 | `ROWS`         | Filas del tablero                        | `20`                  |
 | `BLOCK`        | Tamaño en píxeles de cada celda          | `30`                  |
-| `COLORS`       | Paleta de colores por tipo de pieza      | 7 colores             |
+| `COLORS`       | Paleta de colores por tipo de pieza      | 8 colores             |
 | `LINE_SCORES`  | Puntos por 1, 2, 3 o 4 líneas eliminadas | `[0,100,300,500,800]` |
 | `dropInterval` | Velocidad inicial de caída en ms         | `1000`                |
 

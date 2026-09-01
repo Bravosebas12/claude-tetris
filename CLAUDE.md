@@ -27,8 +27,8 @@ Three files, all loaded directly by `index.html` (no modules/bundler):
 
 ### Key mechanics in `game.js`
 
-- **Board**: `ROWS × COLS` matrix; each cell is `0` (empty) or a piece color index (1–7).
-- **Pieces**: `PIECES` are square matrices; rotation is done via `rotateCW` (transpose + reverse), not by storing pre-rotated states.
+- **Board**: `ROWS × COLS` matrix; each cell is `0` (empty) or a piece color index (1–8).
+- **Pieces**: `PIECES` are square matrices; rotation is done via `rotateCW` (transpose + reverse), not by storing pre-rotated states. Piece 8 (`NUT`) is a 3×3 "nut" with a real empty center (`[[8,8,8],[8,0,8],[8,8,8]]`) — its top row can seal that hole once it lands, permanently blocking that row from `clearLines` until the rows above it clear. Rendered via `drawNut` (a single filled ring with a cut-out circle) instead of the per-cell `drawBlock` loop.
 - **Collision**: `collide(shape, ox, oy)` checks board bounds and cell overlap.
 - **Wall kicks**: `tryRotate` rotates then tries offsets `[0, -1, 1, -2, 2]` until one doesn't collide.
 - **Game loop**: `loop(ts)` runs via `requestAnimationFrame`, accumulates elapsed time in `dropAccum`, and drops the piece one row (or locks it) once `dropAccum >= dropInterval`.

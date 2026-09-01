@@ -13,7 +13,10 @@ const COLORS = [
   '#e57373', // Z - red
   '#90caf9', // J - pale blue
   '#ffb74d', // L - orange
+  '#90a4ae', // NUT - blue grey
 ];
+
+const NUT = 8;
 
 const PIECES = [
   null,
@@ -24,6 +27,7 @@ const PIECES = [
   [[5,5,0],[0,5,5],[0,0,0]],                  // Z
   [[6,0,0],[6,6,6],[0,0,0]],                  // J
   [[0,0,7],[7,7,7],[0,0,0]],                  // L
+  [[8,8,8],[8,0,8],[8,8,8]],                  // NUT - 3x3 con agujero central
 ];
 
 const LINE_SCORES = [0, 100, 300, 500, 800];
@@ -63,7 +67,7 @@ function createBoard() {
 }
 
 function randomPiece() {
-  const type = Math.floor(Math.random() * 7) + 1;
+  const type = Math.floor(Math.random() * 8) + 1;
   const shape = PIECES[type].map(row => [...row]);
   return { type, shape, x: Math.floor(COLS / 2) - Math.floor(shape[0].length / 2), y: 0 };
 }
@@ -177,10 +181,36 @@ function drawBlock(context, x, y, colorIndex, size, alpha) {
   const color = COLORS[colorIndex];
   context.globalAlpha = alpha ?? 1;
   context.fillStyle = color;
-  context.fillRect(x * size + 1, y * size + 1, size - 2, size - 2);
+  // metal fijado: sin margen entre celdas para que el anillo se vea continuo
+  const margin = colorIndex === NUT ? 0 : 1;
+  context.fillRect(x * size + margin, y * size + margin, size - margin * 2, size - margin * 2);
   // highlight
   context.fillStyle = 'rgba(255,255,255,0.12)';
-  context.fillRect(x * size + 1, y * size + 1, size - 2, 4);
+  context.fillRect(x * size + margin, y * size + margin, size - margin * 2, 4);
+  context.globalAlpha = 1;
+}
+
+function drawNut(context, gx, gy, size, alpha) {
+  const px = gx * size;
+  const py = gy * size;
+  const outer = size * 3;
+  context.globalAlpha = alpha ?? 1;
+
+  context.fillStyle = COLORS[NUT];
+  context.beginPath();
+  context.rect(px + 1, py + 1, outer - 2, outer - 2);
+  context.rect(px + size + 1, py + size + 1, size - 2, size - 2);
+  context.fill('evenodd');
+
+  // highlight superior
+  context.fillStyle = 'rgba(255,255,255,0.12)';
+  context.fillRect(px + 1, py + 1, outer - 2, 4);
+
+  // borde del agujero para dar profundidad
+  context.strokeStyle = 'rgba(0,0,0,0.35)';
+  context.lineWidth = 2;
+  context.strokeRect(px + size + 1, py + size + 1, size - 2, size - 2);
+
   context.globalAlpha = 1;
 }
 
@@ -212,15 +242,23 @@ function draw() {
 
   // ghost
   const gy = ghostY();
-  for (let r = 0; r < current.shape.length; r++)
-    for (let c = 0; c < current.shape[r].length; c++)
-      if (current.shape[r][c])
-        drawBlock(ctx, current.x + c, gy + r, current.shape[r][c], BLOCK, 0.2);
+  if (current.type === NUT) {
+    drawNut(ctx, current.x, gy, BLOCK, 0.2);
+  } else {
+    for (let r = 0; r < current.shape.length; r++)
+      for (let c = 0; c < current.shape[r].length; c++)
+        if (current.shape[r][c])
+          drawBlock(ctx, current.x + c, gy + r, current.shape[r][c], BLOCK, 0.2);
+  }
 
   // current piece
-  for (let r = 0; r < current.shape.length; r++)
-    for (let c = 0; c < current.shape[r].length; c++)
-      drawBlock(ctx, current.x + c, current.y + r, current.shape[r][c], BLOCK);
+  if (current.type === NUT) {
+    drawNut(ctx, current.x, current.y, BLOCK);
+  } else {
+    for (let r = 0; r < current.shape.length; r++)
+      for (let c = 0; c < current.shape[r].length; c++)
+        drawBlock(ctx, current.x + c, current.y + r, current.shape[r][c], BLOCK);
+  }
 }
 
 function drawNext() {
@@ -229,9 +267,13 @@ function drawNext() {
   const shape = next.shape;
   const offX = Math.floor((4 - shape[0].length) / 2);
   const offY = Math.floor((4 - shape.length) / 2);
-  for (let r = 0; r < shape.length; r++)
-    for (let c = 0; c < shape[r].length; c++)
-      drawBlock(nextCtx, offX + c, offY + r, shape[r][c], NB);
+  if (next.type === NUT) {
+    drawNut(nextCtx, offX, offY, NB);
+  } else {
+    for (let r = 0; r < shape.length; r++)
+      for (let c = 0; c < shape[r].length; c++)
+        drawBlock(nextCtx, offX + c, offY + r, shape[r][c], NB);
+  }
 }
 
 function endGame() {
