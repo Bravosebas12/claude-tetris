@@ -15,7 +15,20 @@ const COLORS = [
   '#64b5f6', // J - pale blue
   '#ffb74d', // L - orange
   '#b0bec5', // tuerca - gris acero
+  '#ffffff', // comodín (wild)
 ];
+
+const SPECIAL_EVERY = 5;
+const WILD = 9;
+const EFFECTS = ['bomb', 'laser', 'wild', 'gravity', 'freeze'];
+const EFFECT_LABELS = {
+  bomb: 'BOMBA',
+  laser: 'RAYO',
+  wild: 'TINTE',
+  gravity: 'GRAVEDAD',
+  freeze: 'CONGELAR',
+};
+const EFFECT_BADGES = { bomb: 'B', laser: 'L', wild: 'T', gravity: 'G', freeze: 'F' };
 
 const PIECES = [
   null,
@@ -43,9 +56,11 @@ const overlayTitle = document.getElementById('overlay-title');
 const overlayScore = document.getElementById('overlay-score');
 const restartBtn = document.getElementById('restart-btn');
 const themeToggle = document.getElementById('theme-toggle');
+const powerupEl = document.getElementById('powerup');
 
 let board, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId;
 let gridColor, blockHighlight;
+let linesSinceSpecial, pendingSpecial, freezeUntil, flash;
 
 const THEME_KEY = 'tetris-theme';
 
@@ -81,6 +96,10 @@ function randomPiece() {
   const type = Math.floor(Math.random() * 8) + 1;
   const shape = PIECES[type].map(row => [...row]);
   return { type, shape, x: Math.floor(COLS / 2) - Math.floor(shape[0].length / 2), y: 0 };
+}
+
+function randomEffect() {
+  return EFFECTS[Math.floor(Math.random() * EFFECTS.length)];
 }
 
 function collide(shape, ox, oy) {
@@ -139,6 +158,11 @@ function clearLines() {
     score += (LINE_SCORES[cleared] || 0) * level;
     level = Math.floor(lines / 10) + 1;
     dropInterval = Math.max(100, 1000 - (level - 1) * 90);
+    linesSinceSpecial += cleared;
+    if (linesSinceSpecial >= SPECIAL_EVERY) {
+      linesSinceSpecial -= SPECIAL_EVERY;
+      pendingSpecial = true;
+    }
     updateHUD();
   }
 }
@@ -166,8 +190,66 @@ function softDrop() {
   }
 }
 
+function pieceCells() {
+  const cells = [];
+  for (let r = 0; r < current.shape.length; r++)
+    for (let c = 0; c < current.shape[r].length; c++)
+      if (current.shape[r][c]) cells.push({ x: current.x + c, y: current.y + r });
+  return cells;
+}
+
+function compactColumns() {
+  for (let c = 0; c < COLS; c++) {
+    const stack = [];
+    for (let r = ROWS - 1; r >= 0; r--) if (board[r][c]) stack.push(board[r][c]);
+    for (let r = ROWS - 1; r >= 0; r--) board[r][c] = stack[ROWS - 1 - r] || 0;
+  }
+}
+
+function applyEffect(effect, cells) {
+  const xs = cells.map(p => p.x), ys = cells.map(p => p.y);
+  const cx = Math.round((Math.min(...xs) + Math.max(...xs)) / 2);
+  const cy = Math.round((Math.min(...ys) + Math.max(...ys)) / 2);
+
+  if (effect === 'bomb') {
+    for (const { x, y } of cells)
+      for (let dy = -1; dy <= 1; dy++)
+        for (let dx = -1; dx <= 1; dx++) {
+          const nx = x + dx, ny = y + dy;
+          if (nx >= 0 && nx < COLS && ny >= 0 && ny < ROWS) board[ny][nx] = 0;
+        }
+  } else if (effect === 'laser') {
+    if (Math.random() < 0.5) {
+      if (cy >= 0 && cy < ROWS) board[cy].fill(0);
+    } else {
+      for (let r = 0; r < ROWS; r++) if (cx >= 0 && cx < COLS) board[r][cx] = 0;
+    }
+  } else if (effect === 'wild') {
+    const present = new Set();
+    for (let r = 0; r < ROWS; r++)
+      for (let c = 0; c < COLS; c++)
+        if (board[r][c] && board[r][c] !== WILD) present.add(board[r][c]);
+    const colors = [...present];
+    if (colors.length) {
+      const target = colors[Math.floor(Math.random() * colors.length)];
+      for (let r = 0; r < ROWS; r++)
+        for (let c = 0; c < COLS; c++)
+          if (board[r][c] === target) board[r][c] = WILD;
+    }
+  } else if (effect === 'gravity') {
+    compactColumns();
+  } else if (effect === 'freeze') {
+    freezeUntil = performance.now() + 5000;
+  }
+
+  flashMessage(EFFECT_LABELS[effect]);
+}
+
 function lockPiece() {
+  const effect = current.effect;
+  const cells = effect ? pieceCells() : null;
   merge();
+  if (effect) applyEffect(effect, cells);
   clearLines();
   spawn();
 }
@@ -175,16 +257,28 @@ function lockPiece() {
 function spawn() {
   current = next;
   next = randomPiece();
+  if (pendingSpecial) {
+    while (next.type === NUT) next = randomPiece();
+    next.effect = randomEffect();
+    pendingSpecial = false;
+  }
   if (collide(current.shape, current.x, current.y)) {
     endGame();
   }
   drawNext();
+  updateHUD();
 }
 
 function updateHUD() {
   scoreEl.textContent = score.toLocaleString();
   linesEl.textContent = lines;
   levelEl.textContent = level;
+  const effect = (current && current.effect) || (next && next.effect);
+  powerupEl.textContent = effect ? EFFECT_LABELS[effect] : '—';
+}
+
+function flashMessage(text) {
+  flash = { text, until: performance.now() + 1200 };
 }
 
 function drawBlock(context, x, y, colorIndex, size, alpha) {
@@ -209,6 +303,34 @@ function drawNutHole(context, cellX, cellY, size, alpha) {
   context.strokeStyle = 'rgba(255,255,255,0.25)';
   context.stroke();
   context.globalAlpha = 1;
+}
+
+function drawEffectBadge(context, cellX, cellY, size, effect) {
+  const pulse = 0.5 + 0.5 * Math.sin(performance.now() / 200);
+  const px = cellX * size + size / 2;
+  const py = cellY * size + size / 2;
+  context.save();
+  context.shadowColor = '#fff';
+  context.shadowBlur = 6 + 10 * pulse;
+  context.beginPath();
+  context.arc(px, py, size * 0.34, 0, Math.PI * 2);
+  context.fillStyle = 'rgba(20,20,30,0.85)';
+  context.fill();
+  context.lineWidth = 2;
+  context.strokeStyle = '#fff';
+  context.stroke();
+  context.shadowBlur = 0;
+  context.fillStyle = '#fff';
+  context.font = `bold ${Math.floor(size * 0.5)}px 'Courier New', monospace`;
+  context.textAlign = 'center';
+  context.textBaseline = 'middle';
+  context.fillText(EFFECT_BADGES[effect], px, py + 1);
+  context.restore();
+}
+
+function badgeCell(piece) {
+  const cols = piece.shape[0].length, rows = piece.shape.length;
+  return { x: piece.x + Math.floor(cols / 2), y: piece.y + Math.floor(rows / 2) };
 }
 
 function drawGrid() {
@@ -250,6 +372,26 @@ function draw() {
     for (let c = 0; c < current.shape[r].length; c++)
       drawBlock(ctx, current.x + c, current.y + r, current.shape[r][c], BLOCK);
   if (current.type === NUT) drawNutHole(ctx, current.x + 1, current.y + 1, BLOCK);
+  if (current.effect) {
+    const b = badgeCell(current);
+    drawEffectBadge(ctx, b.x, b.y, BLOCK, current.effect);
+  }
+
+  drawFlash();
+}
+
+function drawFlash() {
+  if (!flash || performance.now() > flash.until) return;
+  ctx.save();
+  ctx.globalAlpha = Math.min(1, (flash.until - performance.now()) / 400);
+  ctx.fillStyle = 'rgba(10,10,20,0.7)';
+  ctx.fillRect(0, canvas.height / 2 - 34, canvas.width, 68);
+  ctx.fillStyle = '#fff';
+  ctx.font = "bold 26px 'Courier New', monospace";
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(flash.text, canvas.width / 2, canvas.height / 2);
+  ctx.restore();
 }
 
 function drawNext() {
@@ -262,6 +404,9 @@ function drawNext() {
     for (let c = 0; c < shape[r].length; c++)
       drawBlock(nextCtx, offX + c, offY + r, shape[r][c], NB);
   if (next.type === NUT) drawNutHole(nextCtx, offX + 1, offY + 1, NB);
+  if (next.effect) {
+    drawEffectBadge(nextCtx, offX + Math.floor(shape[0].length / 2), offY + Math.floor(shape.length / 2), NB, next.effect);
+  }
 }
 
 function endGame() {
@@ -290,8 +435,9 @@ function loop(ts) {
   if (gameOver) return;
   const dt = ts - lastTime;
   lastTime = ts;
-  dropAccum += dt;
-  if (dropAccum >= dropInterval) {
+  const frozen = ts < freezeUntil;
+  if (!frozen) dropAccum += dt;
+  if (!frozen && dropAccum >= dropInterval) {
     dropAccum = 0;
     if (!collide(current.shape, current.x, current.y + 1)) {
       current.y++;
@@ -313,6 +459,10 @@ function init() {
   gameOver = false;
   dropInterval = 1000;
   dropAccum = 0;
+  linesSinceSpecial = 0;
+  pendingSpecial = false;
+  freezeUntil = 0;
+  flash = null;
   lastTime = performance.now();
   next = randomPiece();
   spawn();

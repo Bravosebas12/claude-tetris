@@ -106,6 +106,10 @@ body {
   letter-spacing: 1px;
 }
 
+#powerup {
+  font-size: 18px;
+}
+
 #next-canvas {
   display: block;
   border: 1px solid var(--border-color);
