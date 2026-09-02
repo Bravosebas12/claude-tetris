@@ -4,18 +4,6 @@ const COLS = 10;
 const ROWS = 20;
 const BLOCK = 30;
 
-const COLORS = [
-  null,
-  '#4dd0e1', // I - cyan
-  '#ffd54f', // O - yellow
-  '#ba68c8', // T - purple
-  '#81c784', // S - green
-  '#e57373', // Z - red
-  '#90caf9', // J - pale blue
-  '#ffb74d', // L - orange
-  '#90a4ae', // NUT - blue grey
-];
-
 const NUT = 8;
 
 const PIECES = [
@@ -32,6 +20,261 @@ const PIECES = [
 
 const LINE_SCORES = [0, 100, 300, 500, 800];
 
+// ---- Skins ----------------------------------------------------------
+// Every skin owns its own color palette plus drawBlock/drawNut
+// implementations. All canvas pixels for pieces flow through
+// getSkin().drawBlock / getSkin().drawNut (see draw() / drawNext()).
+
+function shadeColor(hex, amount) {
+  const num = parseInt(hex.slice(1), 16);
+  let r = (num >> 16) + amount;
+  let g = ((num >> 8) & 0xff) + amount;
+  let b = (num & 0xff) + amount;
+  r = Math.max(0, Math.min(255, r));
+  g = Math.max(0, Math.min(255, g));
+  b = Math.max(0, Math.min(255, b));
+  return `#${(1 << 24 | (r << 16) | (g << 8) | b).toString(16).slice(1)}`;
+}
+
+const pixelPatternCache = new Map();
+function getPixelPattern(context, color) {
+  const key = color;
+  if (pixelPatternCache.has(key)) return pixelPatternCache.get(key);
+  const pc = document.createElement('canvas');
+  pc.width = 8;
+  pc.height = 8;
+  const pctx = pc.getContext('2d');
+  const dark = shadeColor(color, -35);
+  pctx.fillStyle = dark;
+  pctx.fillRect(0, 0, 8, 8);
+  pctx.fillStyle = color;
+  pctx.fillRect(0, 0, 4, 4);
+  pctx.fillRect(4, 4, 4, 4);
+  const pattern = context.createPattern(pc, 'repeat');
+  pixelPatternCache.set(key, pattern);
+  return pattern;
+}
+
+const SKINS = {
+  // Retro: the original look, moved verbatim from the old module-level
+  // drawBlock/drawNut. This is the visual baseline.
+  retro: {
+    colors: [
+      null,
+      '#4dd0e1', // I - cyan
+      '#ffd54f', // O - yellow
+      '#ba68c8', // T - purple
+      '#81c784', // S - green
+      '#e57373', // Z - red
+      '#90caf9', // J - pale blue
+      '#ffb74d', // L - orange
+      '#90a4ae', // NUT - blue grey
+    ],
+    drawBlock(context, x, y, colorIndex, size, alpha) {
+      if (!colorIndex) return;
+      const color = this.colors[colorIndex];
+      context.globalAlpha = alpha ?? 1;
+      context.fillStyle = color;
+      // metal fijado: sin margen entre celdas para que el anillo se vea continuo
+      const margin = colorIndex === NUT ? 0 : 1;
+      context.fillRect(x * size + margin, y * size + margin, size - margin * 2, size - margin * 2);
+      // highlight
+      context.fillStyle = 'rgba(255,255,255,0.12)';
+      context.fillRect(x * size + margin, y * size + margin, size - margin * 2, 4);
+      context.globalAlpha = 1;
+    },
+    drawNut(context, gx, gy, size, alpha) {
+      const px = gx * size;
+      const py = gy * size;
+      const outer = size * 3;
+      context.globalAlpha = alpha ?? 1;
+
+      context.fillStyle = this.colors[NUT];
+      context.beginPath();
+      context.rect(px + 1, py + 1, outer - 2, outer - 2);
+      context.rect(px + size + 1, py + size + 1, size - 2, size - 2);
+      context.fill('evenodd');
+
+      // highlight superior
+      context.fillStyle = 'rgba(255,255,255,0.12)';
+      context.fillRect(px + 1, py + 1, outer - 2, 4);
+
+      // borde del agujero para dar profundidad
+      context.strokeStyle = 'rgba(0,0,0,0.35)';
+      context.lineWidth = 2;
+      context.strokeRect(px + size + 1, py + size + 1, size - 2, size - 2);
+
+      context.globalAlpha = 1;
+    },
+  },
+
+  // Neon: black background, glowing blocks via shadowBlur/shadowColor.
+  // shadowBlur is global canvas state, so every path here is wrapped in
+  // save()/restore() and also explicitly zeroes shadowBlur before the
+  // non-glow strokes/highlights, so nothing leaks into drawGrid() or the
+  // next-piece preview.
+  neon: {
+    colors: [
+      null,
+      '#00e5ff', // I
+      '#ffee00', // O
+      '#e040fb', // T
+      '#00ff85', // S
+      '#ff1744', // Z
+      '#40c4ff', // J
+      '#ff9100', // L
+      '#b0bec5', // NUT
+    ],
+    drawBlock(context, x, y, colorIndex, size, alpha) {
+      if (!colorIndex) return;
+      const color = this.colors[colorIndex];
+      context.save();
+      context.globalAlpha = alpha ?? 1;
+      const margin = colorIndex === NUT ? 0 : 1;
+      context.shadowBlur = 14;
+      context.shadowColor = color;
+      context.fillStyle = color;
+      context.fillRect(x * size + margin, y * size + margin, size - margin * 2, size - margin * 2);
+      context.shadowBlur = 0;
+      context.fillStyle = 'rgba(255,255,255,0.18)';
+      context.fillRect(x * size + margin, y * size + margin, size - margin * 2, 4);
+      context.restore();
+    },
+    drawNut(context, gx, gy, size, alpha) {
+      const px = gx * size;
+      const py = gy * size;
+      const outer = size * 3;
+      const color = this.colors[NUT];
+      context.save();
+      context.globalAlpha = alpha ?? 1;
+      context.shadowBlur = 14;
+      context.shadowColor = color;
+      context.fillStyle = color;
+      context.beginPath();
+      context.rect(px + 1, py + 1, outer - 2, outer - 2);
+      context.rect(px + size + 1, py + size + 1, size - 2, size - 2);
+      context.fill('evenodd');
+      context.shadowBlur = 0;
+      context.fillStyle = 'rgba(255,255,255,0.18)';
+      context.fillRect(px + 1, py + 1, outer - 2, 4);
+      context.strokeStyle = 'rgba(0,0,0,0.5)';
+      context.lineWidth = 2;
+      context.strokeRect(px + size + 1, py + size + 1, size - 2, size - 2);
+      context.restore();
+    },
+  },
+
+  // Pastel: softened colors, rounded corners via roundRect.
+  pastel: {
+    colors: [
+      null,
+      '#a8dfe6', // I
+      '#fff3b0', // O
+      '#d8b4e2', // T
+      '#b5e3b8', // S
+      '#f0b8b8', // Z
+      '#c3ddf7', // J
+      '#fcd8ae', // L
+      '#cfd8dc', // NUT
+    ],
+    drawBlock(context, x, y, colorIndex, size, alpha) {
+      if (!colorIndex) return;
+      const color = this.colors[colorIndex];
+      context.save();
+      context.globalAlpha = alpha ?? 1;
+      const margin = colorIndex === NUT ? 0 : 1;
+      const bx = x * size + margin;
+      const by = y * size + margin;
+      const bw = size - margin * 2;
+      const bh = size - margin * 2;
+      const radius = Math.min(6, bw / 3, bh / 3);
+      context.fillStyle = color;
+      context.beginPath();
+      context.roundRect(bx, by, bw, bh, radius);
+      context.fill();
+      context.fillStyle = 'rgba(255,255,255,0.3)';
+      context.beginPath();
+      context.roundRect(bx, by, bw, Math.min(4, bh), [radius, radius, 0, 0]);
+      context.fill();
+      context.restore();
+    },
+    drawNut(context, gx, gy, size, alpha) {
+      const px = gx * size;
+      const py = gy * size;
+      const outer = size * 3;
+      const color = this.colors[NUT];
+      context.save();
+      context.globalAlpha = alpha ?? 1;
+      context.fillStyle = color;
+      context.beginPath();
+      context.roundRect(px + 1, py + 1, outer - 2, outer - 2, 8);
+      context.rect(px + size + 1, py + size + 1, size - 2, size - 2);
+      context.fill('evenodd');
+      context.fillStyle = 'rgba(255,255,255,0.3)';
+      context.fillRect(px + 1, py + 1, outer - 2, 4);
+      context.strokeStyle = 'rgba(0,0,0,0.2)';
+      context.lineWidth = 2;
+      context.strokeRect(px + size + 1, py + size + 1, size - 2, size - 2);
+      context.restore();
+    },
+  },
+
+  // Pixel art: a repeating dither pattern (via createPattern) drawn on
+  // top of the base fill for a chunky 8-bit look.
+  pixel: {
+    colors: [
+      null,
+      '#00b8d4', // I
+      '#fdd835', // O
+      '#ab47bc', // T
+      '#66bb6a', // S
+      '#ef5350', // Z
+      '#42a5f5', // J
+      '#ffa726', // L
+      '#78909c', // NUT
+    ],
+    drawBlock(context, x, y, colorIndex, size, alpha) {
+      if (!colorIndex) return;
+      const color = this.colors[colorIndex];
+      context.save();
+      context.globalAlpha = alpha ?? 1;
+      const margin = colorIndex === NUT ? 0 : 1;
+      const bx = x * size + margin;
+      const by = y * size + margin;
+      const bw = size - margin * 2;
+      const bh = size - margin * 2;
+      context.fillStyle = color;
+      context.fillRect(bx, by, bw, bh);
+      context.fillStyle = getPixelPattern(context, color);
+      context.fillRect(bx, by, bw, bh);
+      context.strokeStyle = 'rgba(0,0,0,0.45)';
+      context.lineWidth = 1;
+      context.strokeRect(bx + 0.5, by + 0.5, bw - 1, bh - 1);
+      context.restore();
+    },
+    drawNut(context, gx, gy, size, alpha) {
+      const px = gx * size;
+      const py = gy * size;
+      const outer = size * 3;
+      const color = this.colors[NUT];
+      context.save();
+      context.globalAlpha = alpha ?? 1;
+      context.beginPath();
+      context.rect(px + 1, py + 1, outer - 2, outer - 2);
+      context.rect(px + size + 1, py + size + 1, size - 2, size - 2);
+      context.fillStyle = color;
+      context.fill('evenodd');
+      context.fillStyle = getPixelPattern(context, color);
+      context.fill('evenodd');
+      context.strokeStyle = 'rgba(0,0,0,0.45)';
+      context.lineWidth = 2;
+      context.strokeRect(px + 1, py + 1, outer - 2, outer - 2);
+      context.strokeRect(px + size + 1, py + size + 1, size - 2, size - 2);
+      context.restore();
+    },
+  },
+};
+
 const canvas = document.getElementById('board');
 const ctx = canvas.getContext('2d');
 const nextCanvas = document.getElementById('next-canvas');
@@ -44,6 +287,7 @@ const overlayTitle = document.getElementById('overlay-title');
 const overlayScore = document.getElementById('overlay-score');
 const restartBtn = document.getElementById('restart-btn');
 const themeSwitch = document.getElementById('theme-switch');
+const skinSelect = document.getElementById('skin-select');
 
 let board, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId;
 
@@ -60,6 +304,32 @@ themeSwitch.addEventListener('change', () => {
   const theme = themeSwitch.checked ? 'light' : 'dark';
   localStorage.setItem(THEME_KEY, theme);
   applyTheme(theme);
+});
+
+const SKIN_KEY = 'tetris-skin';
+const SKIN_IDS = ['retro', 'neon', 'pastel', 'pixel'];
+let currentSkin = 'retro';
+
+function getSkin() {
+  return SKINS[currentSkin] || SKINS.retro;
+}
+
+function applySkin(skin) {
+  currentSkin = SKINS[skin] ? skin : 'retro';
+  for (const id of SKIN_IDS) document.body.classList.remove(`skin-${id}`);
+  document.body.classList.add(`skin-${currentSkin}`);
+  if (skinSelect) skinSelect.value = currentSkin;
+  // Force an immediate redraw (paused/game-over frames aren't refreshed by the rAF loop).
+  if (board) draw();
+  if (next) drawNext();
+}
+
+applySkin(localStorage.getItem(SKIN_KEY) || 'retro');
+
+skinSelect.addEventListener('change', () => {
+  const skin = skinSelect.value;
+  localStorage.setItem(SKIN_KEY, skin);
+  applySkin(skin);
 });
 
 function createBoard() {
@@ -176,44 +446,6 @@ function updateHUD() {
   levelEl.textContent = level;
 }
 
-function drawBlock(context, x, y, colorIndex, size, alpha) {
-  if (!colorIndex) return;
-  const color = COLORS[colorIndex];
-  context.globalAlpha = alpha ?? 1;
-  context.fillStyle = color;
-  // metal fijado: sin margen entre celdas para que el anillo se vea continuo
-  const margin = colorIndex === NUT ? 0 : 1;
-  context.fillRect(x * size + margin, y * size + margin, size - margin * 2, size - margin * 2);
-  // highlight
-  context.fillStyle = 'rgba(255,255,255,0.12)';
-  context.fillRect(x * size + margin, y * size + margin, size - margin * 2, 4);
-  context.globalAlpha = 1;
-}
-
-function drawNut(context, gx, gy, size, alpha) {
-  const px = gx * size;
-  const py = gy * size;
-  const outer = size * 3;
-  context.globalAlpha = alpha ?? 1;
-
-  context.fillStyle = COLORS[NUT];
-  context.beginPath();
-  context.rect(px + 1, py + 1, outer - 2, outer - 2);
-  context.rect(px + size + 1, py + size + 1, size - 2, size - 2);
-  context.fill('evenodd');
-
-  // highlight superior
-  context.fillStyle = 'rgba(255,255,255,0.12)';
-  context.fillRect(px + 1, py + 1, outer - 2, 4);
-
-  // borde del agujero para dar profundidad
-  context.strokeStyle = 'rgba(0,0,0,0.35)';
-  context.lineWidth = 2;
-  context.strokeRect(px + size + 1, py + size + 1, size - 2, size - 2);
-
-  context.globalAlpha = 1;
-}
-
 function drawGrid() {
   ctx.strokeStyle = getComputedStyle(document.body).getPropertyValue('--grid-color').trim();
   ctx.lineWidth = 0.5;
@@ -232,47 +464,49 @@ function drawGrid() {
 }
 
 function draw() {
+  const skin = getSkin();
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   drawGrid();
 
   // board
   for (let r = 0; r < ROWS; r++)
     for (let c = 0; c < COLS; c++)
-      drawBlock(ctx, c, r, board[r][c], BLOCK);
+      skin.drawBlock(ctx, c, r, board[r][c], BLOCK);
 
   // ghost
   const gy = ghostY();
   if (current.type === NUT) {
-    drawNut(ctx, current.x, gy, BLOCK, 0.2);
+    skin.drawNut(ctx, current.x, gy, BLOCK, 0.2);
   } else {
     for (let r = 0; r < current.shape.length; r++)
       for (let c = 0; c < current.shape[r].length; c++)
         if (current.shape[r][c])
-          drawBlock(ctx, current.x + c, gy + r, current.shape[r][c], BLOCK, 0.2);
+          skin.drawBlock(ctx, current.x + c, gy + r, current.shape[r][c], BLOCK, 0.2);
   }
 
   // current piece
   if (current.type === NUT) {
-    drawNut(ctx, current.x, current.y, BLOCK);
+    skin.drawNut(ctx, current.x, current.y, BLOCK);
   } else {
     for (let r = 0; r < current.shape.length; r++)
       for (let c = 0; c < current.shape[r].length; c++)
-        drawBlock(ctx, current.x + c, current.y + r, current.shape[r][c], BLOCK);
+        skin.drawBlock(ctx, current.x + c, current.y + r, current.shape[r][c], BLOCK);
   }
 }
 
 function drawNext() {
+  const skin = getSkin();
   const NB = 30;
   nextCtx.clearRect(0, 0, nextCanvas.width, nextCanvas.height);
   const shape = next.shape;
   const offX = Math.floor((4 - shape[0].length) / 2);
   const offY = Math.floor((4 - shape.length) / 2);
   if (next.type === NUT) {
-    drawNut(nextCtx, offX, offY, NB);
+    skin.drawNut(nextCtx, offX, offY, NB);
   } else {
     for (let r = 0; r < shape.length; r++)
       for (let c = 0; c < shape[r].length; c++)
-        drawBlock(nextCtx, offX + c, offY + r, shape[r][c], NB);
+        skin.drawBlock(nextCtx, offX + c, offY + r, shape[r][c], NB);
   }
 }
 

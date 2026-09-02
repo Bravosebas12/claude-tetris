@@ -40,6 +40,64 @@ body.light {
   --accent-hover: #5c7ce0;
 }
 
+/* ---- Skins (layered on top of body.light / dark via CSS vars) ---- */
+body.skin-neon {
+  --bg: #000000;
+  --board-bg: #030308;
+  --board-border: #00e5ff;
+  --grid-color: #0a1a1f;
+  --title-color: #00e5ff;
+  --title-shadow: rgba(0, 229, 255, 0.6);
+}
+
+body.light.skin-neon {
+  --bg: #05050a;
+  --text: #d8f8ff;
+  --board-bg: #030308;
+  --board-border: #00e5ff;
+  --grid-color: #0a1a1f;
+}
+
+body.skin-pastel {
+  --bg: #fdf6f0;
+  --board-bg: #fffaf5;
+  --board-border: #e8d5e8;
+  --grid-color: #f0e4ee;
+  --title-color: #d19fd1;
+  --title-shadow: rgba(209, 159, 209, 0.4);
+}
+
+body.light.skin-pastel {
+  --board-bg: #fffaf5;
+  --board-border: #e8d5e8;
+  --grid-color: #f0e4ee;
+}
+
+body.skin-pixel {
+  --board-border: #666666;
+  --grid-color: #3a3a3a;
+}
+
+body.light.skin-pixel {
+  --board-border: #999999;
+  --grid-color: #dddddd;
+}
+
+.skin-select {
+  background: var(--kbd-bg);
+  border: 1px solid var(--kbd-border);
+  color: var(--kbd-color);
+  border-radius: 4px;
+  padding: 4px 6px;
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.skin-select:focus {
+  outline: 1px solid var(--accent);
+}
+
 *, *::before, *::after {
   box-sizing: border-box;
   margin: 0;
