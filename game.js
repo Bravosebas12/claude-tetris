@@ -13,20 +13,37 @@ const COLORS = [
   '#e57373', // Z - red
   '#90caf9', // J - pale blue
   '#ffb74d', // L - orange
+  '#f06292', // + pentominó - rosa
+  '#4db6ac', // U pentominó - verde azulado
+  '#dce775', // Y pentominó - lima
+  '#ffffff', // 1x1 single - blanco
+  '#90a4ae', // 3x3 hueca - gris
 ];
 
 const PIECES = [
   null,
-  [[0,0,0,0],[1,1,1,1],[0,0,0,0],[0,0,0,0]], // I
-  [[2,2],[2,2]],                               // O
-  [[0,3,0],[3,3,3],[0,0,0]],                  // T
-  [[0,4,4],[4,4,0],[0,0,0]],                  // S
-  [[5,5,0],[0,5,5],[0,0,0]],                  // Z
-  [[6,0,0],[6,6,6],[0,0,0]],                  // J
-  [[0,0,7],[7,7,7],[0,0,0]],                  // L
+  [[0, 0, 0, 0], [1, 1, 1, 1], [0, 0, 0, 0], [0, 0, 0, 0]], // I
+  [[2, 2], [2, 2]],                               // O
+  [[0, 3, 0], [3, 3, 3], [0, 0, 0]],                  // T
+  [[0, 4, 4], [4, 4, 0], [0, 0, 0]],                  // S
+  [[5, 5, 0], [0, 5, 5], [0, 0, 0]],                  // Z
+  [[6, 0, 0], [6, 6, 6], [0, 0, 0]],                  // J
+  [[0, 0, 7], [7, 7, 7], [0, 0, 0]],                  // L
+  [[0, 8, 0], [8, 8, 8], [0, 8, 0]],                  // + pentominó
+  [[9, 0, 9], [9, 9, 9], [0, 0, 0]],                  // U pentominó
+  [[0, 10, 0, 0], [10, 10, 0, 0], [0, 10, 0, 0], [0, 10, 0, 0]], // Y pentominó
+  [[11]],                                      // 1x1 single (recompensa)
+  [[12, 12, 12], [12, 0, 12], [12, 12, 12]],          // 3x3 hueca (reto)
 ];
 
 const LINE_SCORES = [0, 100, 300, 500, 800];
+
+const PENTOMINO_TYPES = [8, 9, 10];
+const SINGLE_TYPE = 11;
+const HOLLOW_TYPE = 12;
+const PENTOMINO_CHANCE = 0.10; // 10% por pieza generada
+const HOLLOW_CHANCE = 0.03;    // 3% por pieza generada
+const MAX_SINGLE_STOCK = 3;
 
 const canvas = document.getElementById('board');
 const ctx = canvas.getContext('2d');
@@ -43,7 +60,6 @@ const themeToggleBtn = document.getElementById('theme-toggle');
 
 const THEME_STORAGE_KEY = 'tetris-theme';
 
-let board, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId;
 let gridColor = '#22222e';
 
 function applyTheme(theme) {
@@ -54,15 +70,29 @@ function applyTheme(theme) {
   themeToggleBtn.setAttribute('aria-label', theme === 'light' ? 'Cambiar a modo oscuro' : 'Cambiar a modo claro');
   localStorage.setItem(THEME_STORAGE_KEY, theme);
 }
+const singleStockEl = document.getElementById('single-stock');
+
+let board, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId, singleStock;
 
 function createBoard() {
   return Array.from({ length: ROWS }, () => new Array(COLS).fill(0));
 }
 
-function randomPiece() {
-  const type = Math.floor(Math.random() * 7) + 1;
+function makePiece(type) {
   const shape = PIECES[type].map(row => [...row]);
   return { type, shape, x: Math.floor(COLS / 2) - Math.floor(shape[0].length / 2), y: 0 };
+}
+
+function randomType() {
+  const r = Math.random();
+  if (r < HOLLOW_CHANCE) return HOLLOW_TYPE;
+  if (r < HOLLOW_CHANCE + PENTOMINO_CHANCE)
+    return PENTOMINO_TYPES[Math.floor(Math.random() * PENTOMINO_TYPES.length)];
+  return Math.floor(Math.random() * 7) + 1;
+}
+
+function randomPiece() {
+  return makePiece(randomType());
 }
 
 function collide(shape, ox, oy) {
@@ -121,7 +151,26 @@ function clearLines() {
     score += (LINE_SCORES[cleared] || 0) * level;
     level = Math.floor(lines / 10) + 1;
     dropInterval = Math.max(100, 1000 - (level - 1) * 90);
+    if (cleared === 4) singleStock = Math.min(singleStock + 1, MAX_SINGLE_STOCK);
     updateHUD();
+  }
+}
+
+function useSingle() {
+  if (singleStock <= 0) return;
+  const candidate = makePiece(SINGLE_TYPE);
+  const offsets = [[0, 0], [0, -1], [0, -2], [-1, 0], [1, 0]];
+  for (const [dx, dy] of offsets) {
+    const x = current.x + dx;
+    const y = current.y + dy;
+    if (!collide(candidate.shape, x, y)) {
+      candidate.x = x;
+      candidate.y = y;
+      current = candidate;
+      singleStock--;
+      updateHUD();
+      return;
+    }
   }
 }
 
@@ -167,6 +216,7 @@ function updateHUD() {
   scoreEl.textContent = score.toLocaleString();
   linesEl.textContent = lines;
   levelEl.textContent = level;
+  singleStockEl.textContent = singleStock;
 }
 
 function drawBlock(context, x, y, colorIndex, size, alpha) {
@@ -278,6 +328,7 @@ function init() {
   score = 0;
   lines = 0;
   level = 1;
+  singleStock = 0;
   paused = false;
   gameOver = false;
   dropInterval = 1000;
@@ -311,6 +362,9 @@ document.addEventListener('keydown', e => {
     case 'Space':
       e.preventDefault();
       hardDrop();
+      break;
+    case 'KeyC':
+      useSingle();
       break;
   }
   updateHUD();
