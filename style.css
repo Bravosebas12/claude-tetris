@@ -256,3 +256,123 @@ kbd {
 #restart-btn:hover {
   background: var(--accent-hover);
 }
+
+/* ---- Start screen ---- */
+#start-title {
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: 4px;
+  color: var(--title-color);
+}
+
+/* ---- High-score table ---- */
+.hiscore-panel {
+  width: 220px;
+}
+
+.hiscore-heading {
+  font-size: 10px;
+  letter-spacing: 2px;
+  color: var(--label-color);
+  font-weight: 600;
+  margin-bottom: 6px;
+  text-align: center;
+}
+
+.hiscore-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 12px;
+}
+
+.hiscore-table th,
+.hiscore-table td {
+  padding: 3px 4px;
+  text-align: center;
+  color: var(--text);
+}
+
+.hiscore-table th {
+  color: var(--label-color);
+  font-size: 9px;
+  letter-spacing: 1px;
+  font-weight: 600;
+}
+
+.hiscore-empty td {
+  color: var(--controls-color);
+  font-style: italic;
+  font-family: system-ui, -apple-system, sans-serif;
+  padding: 8px 4px;
+}
+
+.hiscore-new {
+  background: var(--accent);
+  color: var(--accent-contrast);
+  font-weight: 700;
+}
+
+.hiscore-bests {
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--controls-color);
+  text-align: center;
+}
+
+/* ---- Name entry (game over) ---- */
+#name-entry {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+#name-entry.hidden {
+  display: none;
+}
+
+#name-input {
+  background: var(--kbd-bg);
+  border: 1px solid var(--kbd-border);
+  border-radius: 4px;
+  padding: 8px 10px;
+  color: var(--text);
+  font-size: 13px;
+  width: 120px;
+}
+
+#play-btn,
+#save-score-btn {
+  background: var(--accent);
+  color: var(--accent-contrast);
+  border: none;
+  border-radius: 6px;
+  padding: 10px 24px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  letter-spacing: 1px;
+  transition: background 0.15s;
+}
+
+#play-btn:hover,
+#save-score-btn:hover {
+  background: var(--accent-hover);
+}
+
+#reset-scores-btn {
+  background: transparent;
+  color: var(--controls-color);
+  border: 1px solid var(--kbd-border);
+  border-radius: 6px;
+  padding: 8px 20px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  letter-spacing: 0.5px;
+  transition: background 0.15s;
+}
+
+#reset-scores-btn:hover {
+  background: var(--kbd-bg);
+}

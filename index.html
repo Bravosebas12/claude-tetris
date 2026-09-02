@@ -52,10 +52,41 @@
       </aside>
     </div>
 
+    <div id="start-screen" class="overlay">
+      <div class="overlay-box">
+        <p id="start-title">TETRIS</p>
+        <div class="hiscore-panel">
+          <p class="hiscore-heading">Records</p>
+          <table class="hiscore-table">
+            <thead>
+              <tr><th>#</th><th>Nombre</th><th>Puntos</th><th>Líneas</th><th>Combo</th></tr>
+            </thead>
+            <tbody id="start-hiscore-body"></tbody>
+          </table>
+          <p class="hiscore-bests">Mejor combo: <span id="start-best-combo">0</span> &middot; Máx. líneas: <span id="start-best-lines">0</span></p>
+        </div>
+        <button id="play-btn">Jugar</button>
+        <button id="reset-scores-btn">Reiniciar records</button>
+      </div>
+    </div>
+
     <div id="overlay" class="overlay hidden">
       <div class="overlay-box">
         <p id="overlay-title">GAME OVER</p>
         <p id="overlay-score"></p>
+        <div id="name-entry" class="hidden">
+          <input id="name-input" maxlength="12" placeholder="Nombre" autocomplete="off" />
+          <button id="save-score-btn">Guardar</button>
+        </div>
+        <div class="hiscore-panel">
+          <p class="hiscore-heading">Records</p>
+          <table class="hiscore-table">
+            <thead>
+              <tr><th>#</th><th>Nombre</th><th>Puntos</th><th>Líneas</th><th>Combo</th></tr>
+            </thead>
+            <tbody id="gameover-hiscore-body"></tbody>
+          </table>
+        </div>
         <button id="restart-btn">Reiniciar</button>
       </div>
     </div>
