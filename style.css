@@ -148,6 +148,17 @@ body.light {
   letter-spacing: 1px;
 }
 
+#skin-select {
+  background: var(--kbd-bg);
+  border: 1px solid var(--kbd-border);
+  color: var(--kbd-color);
+  border-radius: 4px;
+  padding: 4px 6px;
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+}
+
 #next-canvas {
   display: block;
   border: 1px solid var(--board-border);

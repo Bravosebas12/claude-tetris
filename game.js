@@ -4,6 +4,10 @@ const COLS = 10;
 const ROWS = 20;
 const BLOCK = 30;
 
+// Canonical 13-entry palette shape (index 0 = null, 1-12 = piece color ids).
+// Rendering itself now goes through the active skin in SKINS (see skins.js,
+// whose "retro" skin mirrors these exact values) — this array is kept as the
+// documented reference shape that every skin's `colors` array must match.
 const COLORS = [
   null,
   '#4dd0e1', // I - cyan
@@ -57,10 +61,25 @@ const overlayTitle = document.getElementById('overlay-title');
 const overlayScore = document.getElementById('overlay-score');
 const restartBtn = document.getElementById('restart-btn');
 const themeToggleBtn = document.getElementById('theme-toggle');
+const skinSelectEl = document.getElementById('skin-select');
 
 const THEME_STORAGE_KEY = 'tetris-theme';
+const SKIN_STORAGE_KEY = 'tetris-skin';
 
 let gridColor = '#22222e';
+
+function getSkinById(id) {
+  return SKINS.find(s => s.id === id) || SKINS[0];
+}
+
+function applySkinBg(skin) {
+  const bg = skin.boardBg || '';
+  canvas.style.background = bg;
+  nextCanvas.style.background = bg;
+}
+
+let currentSkin = getSkinById(localStorage.getItem(SKIN_STORAGE_KEY));
+applySkinBg(currentSkin);
 
 function applyTheme(theme) {
   document.body.classList.toggle('light', theme === 'light');
@@ -221,18 +240,11 @@ function updateHUD() {
 
 function drawBlock(context, x, y, colorIndex, size, alpha) {
   if (!colorIndex) return;
-  const color = COLORS[colorIndex];
-  context.globalAlpha = alpha ?? 1;
-  context.fillStyle = color;
-  context.fillRect(x * size + 1, y * size + 1, size - 2, size - 2);
-  // highlight
-  context.fillStyle = 'rgba(255,255,255,0.12)';
-  context.fillRect(x * size + 1, y * size + 1, size - 2, 4);
-  context.globalAlpha = 1;
+  currentSkin.draw(context, x, y, colorIndex, size, alpha);
 }
 
 function drawGrid() {
-  ctx.strokeStyle = gridColor;
+  ctx.strokeStyle = currentSkin.gridColor || gridColor;
   ctx.lineWidth = 0.5;
   for (let c = 1; c < COLS; c++) {
     ctx.beginPath();
@@ -377,5 +389,14 @@ themeToggleBtn.addEventListener('click', () => {
   applyTheme(isLight ? 'dark' : 'light');
 });
 
+skinSelectEl.addEventListener('change', () => {
+  currentSkin = getSkinById(skinSelectEl.value);
+  localStorage.setItem(SKIN_STORAGE_KEY, currentSkin.id);
+  applySkinBg(currentSkin);
+  drawNext();
+  draw();
+});
+
+skinSelectEl.value = currentSkin.id;
 applyTheme(localStorage.getItem(THEME_STORAGE_KEY) === 'light' ? 'light' : 'dark');
 init();
