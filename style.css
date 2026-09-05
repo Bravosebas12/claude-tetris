@@ -113,6 +113,22 @@ body {
   border-radius: 4px;
 }
 
+#skin-select {
+  background: var(--kbd-bg);
+  color: var(--text);
+  border: 1px solid var(--board-border);
+  border-radius: 4px;
+  padding: 4px 6px;
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+:root[data-skin="neon"] #board,
+:root[data-skin="neon"] #next-canvas {
+  background: #000000;
+}
+
 /* ---- Theme toggle ---- */
 .theme-toggle {
   display: flex;
