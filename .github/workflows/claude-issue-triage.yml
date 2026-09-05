@@ -1,0 +1,40 @@
+name: Claude Issue Triage
+
+on:
+  issues:
+    types: [opened, edited]
+
+jobs:
+  triage:
+    if: |
+      !contains(github.event.issue.body, '@claude') &&
+      !contains(github.event.issue.title, '@claude')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      id-token: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Run Claude Issue Triage
+        id: claude-triage
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: |
+            Analiza el issue #${{ github.event.issue.number }} de este repositorio (`gh issue view ${{ github.event.issue.number }}`).
+
+            1. Revisa los labels existentes con `gh label list`. Si faltan categorías útiles para clasificar este issue (por ejemplo relacionadas con el área del código: game-logic, rendering, ui, controls, scoring; o con el tipo: bug, enhancement, needs-triage), créalas con `gh label create` (elige color y descripción breve).
+            2. Aplica los labels adecuados al issue con `gh issue edit ${{ github.event.issue.number }} --add-label "..."`.
+            3. Publica un comentario en el issue (`gh issue comment ${{ github.event.issue.number }} --body "..."`) con un diagnóstico general que incluya:
+               - Resumen del problema reportado.
+               - Área(s) del código probablemente involucradas (el repo es un Tetris en vanilla JS: `game.js` tiene toda la lógica del juego, `index.html` es el DOM shell, `style.css` el tema visual).
+               - Causa(s) probable(s) si es identificable a partir de la descripción.
+               - Pasos sugeridos para investigar o implementar la solución (sin implementarla todavía).
+
+            No modifiques ningún archivo del repositorio, no crees commits ni PRs. Solo gestiona labels y comenta en el issue.
+          claude_args: '--allowedTools "Bash(gh issue edit:*),Bash(gh issue comment:*),Bash(gh issue view:*),Bash(gh label list:*),Bash(gh label create:*)"'
