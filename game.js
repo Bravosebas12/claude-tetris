@@ -11,8 +11,9 @@ const COLORS = [
   '#ba68c8', // T - purple
   '#81c784', // S - green
   '#e57373', // Z - red
-  '#7986cb', // J - indigo
+  '#90caf9', // J - pale blue
   '#ffb74d', // L - orange
+  '#9aa0a6', // N - tuerca (gris metálico)
 ];
 
 const PIECES = [
@@ -24,9 +25,13 @@ const PIECES = [
   [[5,5,0],[0,5,5],[0,0,0]],                  // Z
   [[6,0,0],[6,6,6],[0,0,0]],                  // J
   [[0,0,7],[7,7,7],[0,0,0]],                  // L
+  [[8,8,8],[8,0,8],[8,8,8]],                  // N - tuerca (centro hueco)
 ];
 
 const LINE_SCORES = [0, 100, 300, 500, 800];
+
+const NUT_TYPE = 8;        // tuerca
+const NUT_CHANCE = 1 / 15; // reto: ~1 de cada 15 piezas
 
 const canvas = document.getElementById('board');
 const ctx = canvas.getContext('2d');
@@ -39,6 +44,9 @@ const overlay = document.getElementById('overlay');
 const overlayTitle = document.getElementById('overlay-title');
 const overlayScore = document.getElementById('overlay-score');
 const restartBtn = document.getElementById('restart-btn');
+const themeToggle = document.getElementById('theme-toggle');
+
+const THEME_KEY = 'tetris-theme';
 
 let board, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId;
 
@@ -47,7 +55,9 @@ function createBoard() {
 }
 
 function randomPiece() {
-  const type = Math.floor(Math.random() * 7) + 1;
+  const type = Math.random() < NUT_CHANCE
+    ? NUT_TYPE
+    : Math.floor(Math.random() * 7) + 1;
   const shape = PIECES[type].map(row => [...row]);
   return { type, shape, x: Math.floor(COLS / 2) - Math.floor(shape[0].length / 2), y: 0 };
 }
@@ -146,6 +156,7 @@ function spawn() {
   next = randomPiece();
   if (collide(current.shape, current.x, current.y)) {
     endGame();
+    return;
   }
   drawNext();
 }
@@ -156,6 +167,10 @@ function updateHUD() {
   levelEl.textContent = level;
 }
 
+function isLightTheme() {
+  return document.body.classList.contains('light-theme');
+}
+
 function drawBlock(context, x, y, colorIndex, size, alpha) {
   if (!colorIndex) return;
   const color = COLORS[colorIndex];
@@ -163,13 +178,13 @@ function drawBlock(context, x, y, colorIndex, size, alpha) {
   context.fillStyle = color;
   context.fillRect(x * size + 1, y * size + 1, size - 2, size - 2);
   // highlight
-  context.fillStyle = 'rgba(255,255,255,0.12)';
+  context.fillStyle = isLightTheme() ? 'rgba(0,0,0,0.10)' : 'rgba(255,255,255,0.12)';
   context.fillRect(x * size + 1, y * size + 1, size - 2, 4);
   context.globalAlpha = 1;
 }
 
 function drawGrid() {
-  ctx.strokeStyle = '#22222e';
+  ctx.strokeStyle = isLightTheme() ? '#d8d8e4' : '#22222e';
   ctx.lineWidth = 0.5;
   for (let c = 1; c < COLS; c++) {
     ctx.beginPath();
@@ -193,6 +208,9 @@ function draw() {
   for (let r = 0; r < ROWS; r++)
     for (let c = 0; c < COLS; c++)
       drawBlock(ctx, c, r, board[r][c], BLOCK);
+
+  // al terminar el juego solo se muestra el tablero congelado
+  if (gameOver) return;
 
   // ghost
   const gy = ghostY();
@@ -219,8 +237,10 @@ function drawNext() {
 }
 
 function endGame() {
+  if (gameOver) return;
   gameOver = true;
   cancelAnimationFrame(animId);
+  animId = null;
   overlayTitle.textContent = 'GAME OVER';
   overlayScore.textContent = `Puntuación: ${score.toLocaleString()}`;
   overlay.classList.remove('hidden');
@@ -253,6 +273,7 @@ function loop(ts) {
     }
   }
   draw();
+  if (gameOver) return;
   animId = requestAnimationFrame(loop);
 }
 
@@ -301,4 +322,28 @@ document.addEventListener('keydown', e => {
 
 restartBtn.addEventListener('click', init);
 
+function initTheme() {
+  let saved = null;
+  try {
+    saved = localStorage.getItem(THEME_KEY);
+  } catch (e) {
+    // localStorage no disponible (p. ej. modo privado); se mantiene el tema por defecto
+  }
+  const isLight = saved === 'light';
+  document.body.classList.toggle('light-theme', isLight);
+  themeToggle.checked = isLight;
+}
+
+themeToggle.addEventListener('change', () => {
+  document.body.classList.toggle('light-theme', themeToggle.checked);
+  try {
+    localStorage.setItem(THEME_KEY, themeToggle.checked ? 'light' : 'dark');
+  } catch (e) {
+    // localStorage no disponible; la preferencia no persistirá
+  }
+  draw();
+  drawNext();
+});
+
+initTheme();
 init();
