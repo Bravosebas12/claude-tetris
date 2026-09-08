@@ -1,0 +1,111 @@
+name: Claude Issue Triage
+
+on:
+  issues:
+    types: [opened, edited, reopened]
+
+concurrency:
+  group: triage-${{ github.event.issue.number }}
+  cancel-in-progress: true
+
+jobs:
+  triage:
+    # Only run on actual issues (not PRs, which also fire `issues` events via the API),
+    # skip our own bot to avoid accidental self-triggering loops, and defer to the
+    # existing claude.yml workflow when the person already tagged @claude themselves.
+    if: |
+      github.event.issue.pull_request == null &&
+      github.actor != 'claude[bot]' &&
+      !contains(github.event.issue.body, '@claude') &&
+      !contains(github.event.issue.title, '@claude')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      id-token: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Run Claude Issue Triage
+        id: claude-triage
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          claude_args: '--allowedTools "Read,Grep,Glob,Bash(gh issue view:*),Bash(gh label list:*),Bash(gh issue edit:*),Bash(gh issue comment:*)"'
+          prompt: |
+            Eres un asistente de triage técnico para un repositorio de Tetris en
+            JavaScript vanilla (HTML5 Canvas, CSS, sin dependencias ni build).
+            Lee CLAUDE.md en la raíz del repo para entender la arquitectura antes
+            de continuar (modelo de tablero, PIECES/COLORS, collide(), lockPiece(),
+            clearLines(), draw(), etc.).
+
+            Tu tarea es analizar el issue #${{ github.event.issue.number }} y hacer
+            dos cosas: (1) aplicarle las etiquetas apropiadas y (2) publicar un
+            diagnóstico técnico como comentario. NO edites el cuerpo del issue, NO
+            modifiques ningún archivo del repo, y NO abras PRs ni commits.
+
+            Paso 1 — Investigar:
+            - Ejecuta `gh issue view ${{ github.event.issue.number }}` para leer el
+              título, cuerpo y comentarios existentes del issue.
+            - Usa Grep/Read/Glob sobre game.js, index.html y style.css para localizar
+              el punto exacto del código implicado (función, constante o selector).
+
+            Paso 2 — Etiquetar:
+            - Ejecuta `gh label list` para ver las etiquetas vigentes del repo (no
+              asumas una lista fija).
+            - Aplica las que correspondan con
+              `gh issue edit ${{ github.event.issue.number }} --add-label "..."`.
+            - Usa SOLO `--add-label`, nunca `--remove-label`: no quites etiquetas que
+              ya haya puesto una persona.
+            - Aplica entre 1 y 3 etiquetas. Si ninguna encaja con confianza razonable,
+              no fuerces ninguna.
+            - Guía orientativa (ajusta según las etiquetas reales que devuelva
+              `gh label list`): "bug" = algo no funciona como debería; "enhancement" =
+              funcionalidad nueva o mejora; "documentation" = README/CLAUDE.md;
+              "accessibility" = contraste, teclado, lectores de pantalla;
+              "question" = pide información, no describe un problema; "good first
+              issue" = corrección local y acotada (p. ej. una constante o pocas
+              líneas); "invalid"/"duplicate"/"wontfix" solo con evidencia clara en el
+              propio issue o en el historial.
+
+            Paso 3 — Diagnosticar:
+            Redacta en español un comentario con esta estructura exacta (usa estos
+            encabezados literalmente):
+
+            <!-- claude-issue-triage -->
+            ## 🔍 Diagnóstico automático
+
+            **Resumen**: 1-2 frases sobre qué falla o qué se pide.
+
+            **Tipo y área**: bug / mejora / duda — y área: gameplay, renderizado,
+            UI/estilos, input, puntuación, docs.
+
+            **Ubicación probable en el código**: rutas y símbolos concretos, formato
+            `game.js:línea` o nombre de función, citando el fragmento relevante.
+
+            **Causa raíz sospechada**: la razón técnica, no una repetición del
+            síntoma.
+
+            **Propuesta de solución**: pasos numerados y accionables, indicando qué
+            constante o función se toca.
+
+            **Criterios de aceptación**: cómo verificar manualmente en el navegador
+            (no hay suite de tests automatizada en este repo).
+
+            **Riesgos / efectos secundarios**: qué más podría verse afectado (p. ej.
+            tocar COLORS afecta también drawNext() y la pieza fantasma).
+
+            **Confianza**: Alta / Media / Baja, con la razón si no es Alta.
+
+            Si algo no se puede determinar con certeza desde el código, dilo
+            explícitamente en vez de inventar rutas o números de línea.
+
+            Paso 4 — Publicar de forma idempotente:
+            Guarda el comentario en un archivo temporal y publícalo con:
+            `gh issue comment ${{ github.event.issue.number }} --body-file <archivo> --edit-last --create-if-none`
+            Esto asegura que, al reeditar o reabrir el issue, se actualice el
+            diagnóstico anterior (identificable por el marcador
+            `<!-- claude-issue-triage -->`) en lugar de acumular comentarios nuevos.
