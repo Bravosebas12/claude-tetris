@@ -73,7 +73,9 @@ jobs:
 
             Paso 3 — Diagnosticar:
             Redacta en español un comentario con esta estructura exacta (usa estos
-            encabezados literalmente):
+            encabezados literalmente). El comentario debe estar en formato Markdown
+            que GitHub pueda interpretar correctamente (encabezados con `##`, listas,
+            **negritas**, bloques de código con ``` para fragmentos de código, etc.):
 
             <!-- claude-issue-triage -->
             ## 🔍 Diagnóstico automático
