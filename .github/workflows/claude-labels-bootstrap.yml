@@ -1,0 +1,41 @@
+name: Bootstrap Triage Labels
+
+# Ejecutar una sola vez (manual) para crear/actualizar la taxonomía de labels
+# que usa el workflow "Claude Issue Triage". Los labels existentes del repo
+# (bug, enhancement, documentation, question, accessibility, duplicate,
+# invalid, wontfix, good first issue, help wanted) no se tocan.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  bootstrap-labels:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Create or update taxonomy labels
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          create() {
+            gh label create "$1" --color "$2" --description "$3" --force
+          }
+
+          # area:*
+          create "area:gameplay"  "1d76db" "Lógica de juego: piezas, rotación, colisiones, líneas"
+          create "area:ui"        "1d76db" "HUD, overlay de pausa/game over, controles en pantalla"
+          create "area:rendering" "1d76db" "Dibujo en canvas: tablero, pieza fantasma, next piece"
+          create "area:input"     "1d76db" "Teclado/controles y manejo de eventos"
+          create "area:scoring"   "1d76db" "Puntuación, líneas, nivel y velocidad de caída"
+
+          # priority:*
+          create "priority:high"   "b60205" "Alta prioridad"
+          create "priority:medium" "fbca04" "Prioridad media"
+          create "priority:low"    "0e8a16" "Prioridad baja"
+
+          # complexity:*
+          create "complexity:small"  "c5def5" "Cambio pequeño y acotado"
+          create "complexity:medium" "c5def5" "Cambio de tamaño moderado"
+          create "complexity:large"  "c5def5" "Cambio grande o que toca varias áreas"

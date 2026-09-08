@@ -1,5 +1,7 @@
 'use strict';
 
+// CLAUDE_CODE_OAUTH_TOKEN
+
 const COLS = 10;
 const ROWS = 20;
 const BLOCK = 30;

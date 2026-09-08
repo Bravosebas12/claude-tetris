@@ -1,0 +1,127 @@
+name: Claude Issue Triage
+
+on:
+  issues:
+    types: [opened, edited]
+
+concurrency:
+  group: claude-triage-${{ github.event.issue.number }}
+  cancel-in-progress: true
+
+jobs:
+  triage:
+    # Evita ruido/bucles:
+    # - solo issues reales (el evento "issues" a veces se dispara también para PRs)
+    # - ignora bots
+    # - si el cuerpo ya menciona @claude, la atiende claude.yml (no duplicar trabajo)
+    if: >
+      github.event.issue.pull_request == null &&
+      github.actor != 'github-actions[bot]' &&
+      !contains(github.event.issue.body, '@claude')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      id-token: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Run Claude Issue Triage
+        id: claude-triage
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          claude_args: >
+            --allowedTools "Read,Grep,Glob,Bash(gh issue view:*),Bash(gh issue edit:*),Bash(gh issue comment:*),Bash(gh label list:*),Bash(gh api:*)"
+          prompt: |
+            Estás haciendo triage automático de una issue de GitHub en el repo
+            ${{ github.repository }}, issue #${{ github.event.issue.number }}.
+
+            Este repo es un Tetris vanilla (HTML5 Canvas + CSS + JS ES6+, sin
+            dependencias). Contexto de `game.js` (todo a scope de módulo, sin
+            clases) que puedes usar para ubicar el área afectada:
+            - `PIECES`, `rotateCW`, `tryRotate` (wall-kicks): rotación de piezas.
+            - `collide(shape, ox, oy)`: colisiones con bordes/tablero.
+            - `loop(ts)`, `dropInterval`: bucle principal y velocidad de caída.
+            - `lockPiece`, `clearLines`: fijar pieza y limpiar líneas.
+            - `LINE_SCORES`, nivel (`floor(lines/10)+1`): puntuación y nivel.
+            - `ghostY()`: proyección de la pieza fantasma.
+            - Funciones de dibujo sobre `<canvas id="board">` y `#next-canvas`.
+            - `index.html`: HUD (`score`/`lines`/`level`) y overlay de pausa/game over.
+            - `style.css`: tema visual retro/arcade.
+            Regla importante: cambiar `COLS`, `ROWS` o `BLOCK` obliga a actualizar
+            `width`/`height` del `<canvas id="board">` en `index.html`.
+
+            Pasos:
+
+            1. Lee la issue completa:
+               `gh issue view ${{ github.event.issue.number }} --json title,body,labels,comments`
+
+            2. Lee los labels disponibles del repo:
+               `gh label list`
+               Usa ÚNICAMENTE labels que ya existan en esa lista. No inventes
+               labels nuevos ni los crees.
+
+            3. Explora el código real (Read/Grep/Glob) para confirmar qué
+               archivos y funciones están implicados. No afirmes nada sobre
+               líneas o funciones que no hayas verificado leyendo el archivo.
+               Si no logras ubicar el área con confianza, dilo explícitamente
+               en vez de adivinar.
+
+            4. Aplica labels con
+               `gh issue edit ${{ github.event.issue.number }} --add-label "..."`
+               Elige como máximo ~4 labels, combinando (si existen en el repo):
+               - un label de tipo (bug / enhancement / documentation / question)
+               - un label `area:*` (gameplay/ui/rendering/input/scoring)
+               - un label `priority:*` (high/medium/low)
+               - un label `complexity:*` (small/medium/large)
+               Si alguno de estos labels no existe todavía en el repo, omítelo
+               (no falles el workflow por eso).
+
+            5. Antes de comentar, revisa si ya existe un comentario tuyo
+               anterior que contenga el marcador `<!-- claude-triage -->`
+               (usa `gh issue view ${{ github.event.issue.number }} --json comments`).
+               - Si existe, actualízalo en sitio con:
+                 `gh api -X PATCH repos/${{ github.repository }}/issues/comments/<id> -f body=@archivo.md`
+               - Si no existe, créalo con:
+                 `gh issue comment ${{ github.event.issue.number }} --body-file archivo.md`
+               Nunca publiques un segundo comentario de diagnóstico duplicado.
+
+            6. El comentario (guarda el contenido en un archivo temporal antes
+               de usarlo con --body-file / -f body=@) debe empezar con la línea
+               `<!-- claude-triage -->` (oculta) y luego, en español, tener
+               exactamente estas secciones en este orden:
+
+               ## 🔍 Diagnóstico automático
+
+               **Resumen**
+               1-2 frases de qué pide o reporta la issue.
+
+               **Tipo**
+               bug / mejora / duda / documentación.
+
+               **Archivos y funciones implicadas**
+               Rutas y nombres reales verificados en el código (ej. `game.js`
+               función `tryRotate`).
+
+               **Causa probable / estado actual**
+               Qué hace hoy el código respecto a lo pedido.
+
+               **Enfoque de solución propuesto**
+               Pasos concretos y accionables para implementar la solución.
+
+               **Criterios de aceptación**
+               Lista verificable de qué debe cumplirse para considerar resuelto.
+
+               **Riesgos y efectos colaterales**
+               Cosas a tener en cuenta (ej. la regla de tamaño de canvas si aplica).
+
+               **Información faltante**
+               Solo incluir esta sección si la issue es ambigua o falta contexto
+               para dar un diagnóstico completo; si no falta nada, omite la sección.
+
+               Cierra el comentario con una línea indicando que se puede pedir
+               la implementación mencionando `@claude` en esta misma issue.
