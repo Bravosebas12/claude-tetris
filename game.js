@@ -79,6 +79,7 @@ function rotateCW(shape) {
 }
 
 function tryRotate() {
+  if (gameOver || paused) return;
   const rotated = rotateCW(current.shape);
   const kicks = [0, -1, 1, -2, 2];
   for (const kick of kicks) {
@@ -123,6 +124,7 @@ function ghostY() {
 }
 
 function hardDrop() {
+  if (gameOver || paused) return;
   const gy = ghostY();
   score += (gy - current.y) * 2;
   current.y = gy;
@@ -130,6 +132,7 @@ function hardDrop() {
 }
 
 function softDrop() {
+  if (gameOver || paused) return;
   if (!collide(current.shape, current.x, current.y + 1)) {
     current.y++;
     score += 1;
@@ -140,17 +143,20 @@ function softDrop() {
 }
 
 function lockPiece() {
+  if (gameOver) return;
   merge();
   clearLines();
   spawn();
 }
 
 function spawn() {
-  current = next;
-  next = randomPiece();
-  if (collide(current.shape, current.x, current.y)) {
+  const piece = next;
+  if (collide(piece.shape, piece.x, piece.y)) {
     endGame();
+    return;
   }
+  current = piece;
+  next = randomPiece();
   drawNext();
 }
 
@@ -198,6 +204,8 @@ function draw() {
     for (let c = 0; c < COLS; c++)
       drawBlock(ctx, c, r, board[r][c], BLOCK);
 
+  if (gameOver) return;
+
   // ghost
   const gy = ghostY();
   for (let r = 0; r < current.shape.length; r++)
@@ -223,8 +231,12 @@ function drawNext() {
 }
 
 function endGame() {
+  if (gameOver) return;
   gameOver = true;
+  paused = false;
   cancelAnimationFrame(animId);
+  animId = null;
+  draw();
   overlayTitle.textContent = 'GAME OVER';
   overlayScore.textContent = `Puntuación: ${score.toLocaleString()}`;
   overlay.classList.remove('hidden');
@@ -245,6 +257,7 @@ function togglePause() {
 }
 
 function loop(ts) {
+  if (gameOver || paused) return;
   const dt = ts - lastTime;
   lastTime = ts;
   dropAccum += dt;
@@ -257,6 +270,7 @@ function loop(ts) {
     }
   }
   draw();
+  if (gameOver) return;
   animId = requestAnimationFrame(loop);
 }
 
