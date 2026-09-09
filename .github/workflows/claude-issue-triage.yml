@@ -1,0 +1,92 @@
+name: Claude Issue Triage
+
+on:
+  issues:
+    types: [opened, edited, reopened]
+
+concurrency:
+  group: issue-triage-${{ github.event.issue.number }}
+  cancel-in-progress: true
+
+jobs:
+  triage:
+    if: github.event.sender.type != 'Bot'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      id-token: write
+
+    steps:
+      - name: Ensure game-specific labels exist
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh label create "area:rendering" --color 1d76db --description "Canvas, dibujo, ghost piece, grid" --force
+          gh label create "area:input" --color 5319e7 --description "Teclado, controles, pausa" --force
+          gh label create "area:scoring" --color 0e8a16 --description "Puntaje, líneas, nivel, velocidad" --force
+          gh label create "area:collision" --color b60205 --description "Colisiones, rotación, wall kicks" --force
+          gh label create "area:ui" --color fbca04 --description "HTML/CSS, layout, textos" --force
+          gh label create "priority:high" --color d93f0b --description "Prioridad alta" --force
+          gh label create "priority:medium" --color fbca04 --description "Prioridad media" --force
+          gh label create "priority:low" --color c2e0c6 --description "Prioridad baja" --force
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Run Claude Code triage
+        id: claude
+        uses: anthropics/claude-code-action@v1
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          claude_args: '--allowedTools "Bash(gh issue view:*),Bash(gh issue edit:*),Bash(gh issue comment:*),Bash(gh label list:*),Read,Grep,Glob"'
+          prompt: |
+            Estás triando un issue de un repositorio de Tetris en JavaScript vanilla.
+            Repositorio: ${{ github.repository }}
+            Número de issue: ${{ github.event.issue.number }}
+
+            1. Ejecutá `gh issue view ${{ github.event.issue.number }} --json title,body,labels,comments` para leer el issue completo.
+            2. Leé CLAUDE.md para entender la arquitectura del proyecto (board, piezas, colisiones, render, input), y revisá game.js, index.html y style.css según haga falta para localizar el código relevante al issue.
+            3. Ejecutá `gh label list` para ver las labels disponibles. Elegí:
+               - Exactamente un tipo: bug, enhancement, documentation o question.
+               - Cero o más labels de área: area:rendering, area:input, area:scoring, area:collision, area:ui.
+               - Exactamente una prioridad: priority:high, priority:medium o priority:low.
+               - Si el issue es spam, duplicado o incomprensible, usá duplicate o invalid según corresponda en vez de las anteriores.
+               No inventes labels que no existan en la lista. No quites labels que ya haya puesto una persona.
+               Aplicá las labels elegidas con `gh issue edit ${{ github.event.issue.number }} --add-label "label1,label2,..."`.
+            4. Redactá un comentario de diagnóstico EN ESPAÑOL con esta estructura exacta (encabezados en markdown):
+
+               ## 🤖 Diagnóstico automático
+
+               **Resumen**
+               1-2 frases de qué pide o reporta el issue.
+
+               **Diagnóstico**
+               Hipótesis técnica: qué parte del flujo del juego (collide, tryRotate, clearLines, lockPiece, draw, el listener de keydown, etc.) está probablemente implicada y por qué.
+
+               **Archivos probables**
+               Rutas y funciones concretas, con formato `game.js:123` cuando puedas ubicar líneas.
+
+               **Reproducción / información faltante**
+               Pasos para reproducir el problema, o preguntas concretas al autor si el issue es ambiguo o le falta información.
+
+               **Labels aplicadas**
+               Lista de las labels que aplicaste con una línea de justificación para cada una.
+
+               ---
+               _Este es un análisis automático generado por Claude y puede contener errores._
+
+            5. Publicá ese comentario. Si ya existe un comentario de triaje previo tuyo en este issue (identificalo porque empieza con "## 🤖 Diagnóstico automático"), actualizalo en lugar de crear uno nuevo usando:
+               `gh issue comment ${{ github.event.issue.number }} --edit-last --body-file <archivo>`
+               Si el comando falla porque no hay un comentario previo tuyo que editar, usá en su lugar:
+               `gh issue comment ${{ github.event.issue.number }} --body-file <archivo>`
+
+            Reglas importantes:
+            - No edites código ni archivos del repositorio.
+            - No abras pull requests.
+            - No cierres el issue.
+            - Limitate a leer código, aplicar labels y comentar.
