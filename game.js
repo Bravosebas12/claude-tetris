@@ -38,6 +38,92 @@ const REGULAR_TYPES = 7; // las 7 piezas clásicas; la tuerca se sortea aparte
 
 const LINE_SCORES = [0, 100, 300, 500, 800];
 
+// ---- THEME SYSTEM ----
+const THEMES = {
+  retro: {
+    name: 'Retro',
+    shadowBlur: 0,
+    pattern: false,
+    css: {
+      '--bg-primary': '#0f0f17',
+      '--bg-canvas': '#1a1a25',
+      '--text-primary': '#e0e0e0',
+      '--text-secondary': '#888',
+      '--accent': '#7aa2f7',
+      '--border': '#2a2a3a',
+      '--grid-color': '#22222e',
+      '--label-color': '#555570',
+    }
+  },
+  neon: {
+    name: 'Neon',
+    shadowBlur: 15,
+    pattern: false,
+    css: {
+      '--bg-primary': '#0a0a1a',
+      '--bg-canvas': '#0f0f2a',
+      '--text-primary': '#00ffff',
+      '--text-secondary': '#00ff88',
+      '--accent': '#ff00ff',
+      '--border': '#00ffff',
+      '--grid-color': '#00ff3344',
+      '--label-color': '#00ff88',
+    }
+  },
+  pastel: {
+    name: 'Pastel',
+    shadowBlur: 0,
+    pattern: false,
+    css: {
+      '--bg-primary': '#faf5f0',
+      '--bg-canvas': '#fff8f5',
+      '--text-primary': '#5d6d7b',
+      '--text-secondary': '#9db4c4',
+      '--accent': '#ff9999',
+      '--border': '#ffe0d4',
+      '--grid-color': '#ffe8dd',
+      '--label-color': '#c9a3a3',
+    }
+  },
+  pixelart: {
+    name: 'Pixel Art',
+    shadowBlur: 0,
+    pattern: true,
+    css: {
+      '--bg-primary': '#0f0f17',
+      '--bg-canvas': '#1a1a25',
+      '--text-primary': '#e0e0e0',
+      '--text-secondary': '#888',
+      '--accent': '#7aa2f7',
+      '--border': '#2a2a3a',
+      '--grid-color': '#22222e',
+      '--label-color': '#555570',
+    }
+  }
+};
+
+let currentTheme = 'retro';
+
+function applyTheme(themeKey) {
+  if (!THEMES[themeKey]) return;
+  currentTheme = themeKey;
+  const theme = THEMES[themeKey];
+  const root = document.documentElement;
+  Object.entries(theme.css).forEach(([key, value]) => {
+    root.style.setProperty(key, value);
+  });
+  localStorage.setItem('tetris_theme', themeKey);
+  draw();
+}
+
+function adjustBrightness(hex, factor) {
+  const num = parseInt(hex.replace('#', ''), 16);
+  const r = Math.max(0, Math.min(255, Math.round((num >> 16) * (1 + factor))));
+  const g = Math.max(0, Math.min(255, Math.round(((num >> 8) & 0x00FF) * (1 + factor))));
+  const b = Math.max(0, Math.min(255, Math.round((num & 0x0000FF) * (1 + factor))));
+  return '#' + (r << 16 | g << 8 | b).toString(16).padStart(6, '0');
+}
+
 const canvas = document.getElementById('board');
 const ctx = canvas.getContext('2d');
 const nextCanvas = document.getElementById('next-canvas');
@@ -247,6 +333,8 @@ function drawBlock(context, x, y, colorIndex, size, alpha) {
   if (!colorIndex) return;
   context.globalAlpha = alpha ?? 1;
 
+  const theme = THEMES[currentTheme];
+
   if (colorIndex === BOMB) {
     // BOMB: radial gradient cyan→magenta
     const cx = x * size + size / 2;
@@ -262,13 +350,37 @@ function drawBlock(context, x, y, colorIndex, size, alpha) {
     context.fillStyle = grad;
     context.fillRect(x * size + 1, y * size + 1, size - 2, size - 2);
   } else {
-    // Standard block
+    // Standard block with theme effects
     const color = COLORS[colorIndex];
+
+    // Neon glow effect
+    if (theme.shadowBlur > 0) {
+      context.shadowColor = color;
+      context.shadowBlur = theme.shadowBlur;
+    } else {
+      context.shadowBlur = 0;
+    }
+
     context.fillStyle = color;
     context.fillRect(x * size + 1, y * size + 1, size - 2, size - 2);
-    // highlight
-    context.fillStyle = 'rgba(255,255,255,0.12)';
-    context.fillRect(x * size + 1, y * size + 1, size - 2, 4);
+    context.shadowBlur = 0;
+
+    // Pixel art pattern effect
+    if (theme.pattern) {
+      const patternColor = adjustBrightness(color, -0.2);
+      context.fillStyle = patternColor;
+      for (let py = 0; py < 2; py++) {
+        for (let px = 0; px < 2; px++) {
+          if ((px + py) % 2 === 0) {
+            context.fillRect(x * size + 1 + px * (size - 2) / 2, y * size + 1 + py * (size - 2) / 2, (size - 2) / 2, (size - 2) / 2);
+          }
+        }
+      }
+    } else {
+      // highlight
+      context.fillStyle = 'rgba(255,255,255,0.12)';
+      context.fillRect(x * size + 1, y * size + 1, size - 2, 4);
+    }
   }
 
   context.globalAlpha = 1;
@@ -381,6 +493,15 @@ function init() {
   spawn();
   updateHUD();
   overlay.classList.add('hidden');
+
+  // Load and apply saved theme
+  const savedTheme = localStorage.getItem('tetris_theme') || 'retro';
+  applyTheme(savedTheme);
+  const themeSelect = document.getElementById('theme-select');
+  if (themeSelect) {
+    themeSelect.value = currentTheme;
+  }
+
   cancelAnimationFrame(animId);
   animId = requestAnimationFrame(loop);
 }
@@ -411,5 +532,9 @@ document.addEventListener('keydown', e => {
 });
 
 restartBtn.addEventListener('click', init);
+
+document.getElementById('theme-select')?.addEventListener('change', e => {
+  applyTheme(e.target.value);
+});
 
 init();
