@@ -49,8 +49,85 @@ const overlay = document.getElementById('overlay');
 const overlayTitle = document.getElementById('overlay-title');
 const overlayScore = document.getElementById('overlay-score');
 const restartBtn = document.getElementById('restart-btn');
+const highscoresInput = document.getElementById('highscores-input');
+const highscoresTable = document.getElementById('highscores-table');
+const nameInput = document.getElementById('player-name');
+const saveScoreBtn = document.getElementById('save-score-btn');
+const clearScoresBtn = document.getElementById('clear-scores-btn');
 
-let board, holes, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId;
+let board, holes, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId, highScores;
+
+function loadHighScores() {
+  const stored = localStorage.getItem('tetris_highscores');
+  return stored ? JSON.parse(stored) : [];
+}
+
+function saveHighScore(entry) {
+  let scores = loadHighScores();
+  scores.push(entry);
+  scores.sort((a, b) => b.score - a.score);
+  scores = scores.slice(0, 5);
+  localStorage.setItem('tetris_highscores', JSON.stringify(scores));
+  highScores = scores;
+  return scores;
+}
+
+function clearHighScores() {
+  if (confirm('¿Borrar todos los records?')) {
+    localStorage.removeItem('tetris_highscores');
+    highScores = [];
+    renderHighScoresTable();
+  }
+}
+
+function getTodayDate() {
+  const now = new Date();
+  return now.toISOString().split('T')[0];
+}
+
+function renderHighScoresTable() {
+  if (!highscoresTable) return;
+  highscoresTable.innerHTML = '';
+
+  if (highScores.length === 0) {
+    highscoresTable.innerHTML = '<p style="grid-column: 1/-1; text-align: center; color: #888;">No hay records yet</p>';
+    return;
+  }
+
+  const header = document.createElement('div');
+  header.className = 'highscores-header';
+  header.innerHTML = `
+    <div>#</div>
+    <div>Nombre</div>
+    <div>Puntuación</div>
+    <div>Líneas</div>
+    <div>Nivel</div>
+    <div>Fecha</div>
+  `;
+  highscoresTable.appendChild(header);
+
+  highScores.forEach((entry, idx) => {
+    const row = document.createElement('div');
+    row.className = 'highscores-row';
+    if (entry.isCurrentScore) row.classList.add('current-score');
+    row.innerHTML = `
+      <div>${idx + 1}</div>
+      <div>${entry.name}</div>
+      <div>${entry.score.toLocaleString()}</div>
+      <div>${entry.lines}</div>
+      <div>${entry.level}</div>
+      <div>${entry.date}</div>
+    `;
+    highscoresTable.appendChild(row);
+  });
+}
+
+function showGameOverUI() {
+  if (!highscoresInput || !nameInput || !saveScoreBtn) return;
+  highscoresInput.classList.remove('hidden');
+  nameInput.value = '';
+  nameInput.focus();
+}
 
 function createBoard() {
   return Array.from({ length: ROWS }, () => new Array(COLS).fill(0));
@@ -333,6 +410,7 @@ function endGame() {
   overlayTitle.textContent = 'GAME OVER';
   overlayScore.textContent = `Puntuación: ${score.toLocaleString()}`;
   overlay.classList.remove('hidden');
+  showGameOverUI();
 }
 
 function togglePause() {
@@ -381,6 +459,8 @@ function init() {
   spawn();
   updateHUD();
   overlay.classList.add('hidden');
+  if (highscoresInput) highscoresInput.classList.add('hidden');
+  highScores = loadHighScores();
   cancelAnimationFrame(animId);
   animId = requestAnimationFrame(loop);
 }
@@ -411,5 +491,26 @@ document.addEventListener('keydown', e => {
 });
 
 restartBtn.addEventListener('click', init);
+
+if (saveScoreBtn && nameInput && highscoresInput) {
+  saveScoreBtn.addEventListener('click', () => {
+    const name = nameInput.value.trim() || 'Anónimo';
+    const entry = {
+      name,
+      score,
+      lines,
+      level,
+      date: getTodayDate(),
+      isCurrentScore: true
+    };
+    saveHighScore(entry);
+    highscoresInput.classList.add('hidden');
+    renderHighScoresTable();
+  });
+}
+
+if (clearScoresBtn) {
+  clearScoresBtn.addEventListener('click', clearHighScores);
+}
 
 init();

@@ -150,3 +150,131 @@ kbd {
 #restart-btn:hover {
   background: #9bbdff;
 }
+
+/* ---- High Scores Input ---- */
+#highscores-input {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+#highscores-input.hidden {
+  display: none;
+}
+
+#player-name {
+  padding: 8px 12px;
+  border: 1px solid #3a3a5a;
+  border-radius: 4px;
+  background: #22223a;
+  color: #e0e0e0;
+  font-size: 14px;
+  font-family: inherit;
+  outline: none;
+  min-width: 150px;
+}
+
+#player-name::placeholder {
+  color: #666;
+}
+
+#player-name:focus {
+  border-color: #7aa2f7;
+  background: #2a2a3a;
+}
+
+#save-score-btn {
+  padding: 8px 16px;
+  background: #81c784;
+  color: #0f0f17;
+  border: none;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+#save-score-btn:hover {
+  background: #9ccc65;
+}
+
+/* ---- High Scores Table ---- */
+#highscores-table {
+  margin-top: 12px;
+  min-width: 300px;
+  max-width: 400px;
+}
+
+.highscores-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 8px;
+  font-size: 12px;
+  color: #e0e0e0;
+}
+
+.highscores-header {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 8px;
+  font-weight: 700;
+  color: #7aa2f7;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #3a3a5a;
+  margin-bottom: 4px;
+  grid-column: 1 / -1;
+}
+
+.highscores-header div {
+  text-align: center;
+}
+
+.highscores-row {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 3px;
+  background: rgba(122, 162, 247, 0.05);
+  grid-column: 1 / -1;
+}
+
+.highscores-row div {
+  text-align: center;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 11px;
+}
+
+.highscores-row.current-score {
+  background: rgba(210, 180, 140, 0.15);
+  border: 1px solid #daa520;
+}
+
+.highscores-row.current-score div {
+  color: #ffd54f;
+}
+
+/* ---- Overlay Buttons ---- */
+.overlay-buttons {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  margin-top: 12px;
+}
+
+#clear-scores-btn {
+  padding: 8px 16px;
+  background: #e57373;
+  color: #0f0f17;
+  border: none;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+#clear-scores-btn:hover {
+  background: #ef5350;
+}
