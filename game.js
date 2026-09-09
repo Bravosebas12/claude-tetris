@@ -302,3 +302,15 @@ document.addEventListener('keydown', e => {
 restartBtn.addEventListener('click', init);
 
 init();
+
+
+
+
+
+
+
+
+
+
+
+
