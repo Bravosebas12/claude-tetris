@@ -29,8 +29,9 @@ Then open in a browser (or `http://localhost:8000` if serving). To verify change
 
 Everything is global state and top-level functions in `game.js` — no classes, no modules, no build step. Key pieces:
 
-- **Board model**: `board` is a `ROWS × COLS` matrix; each cell is `0` (empty) or an index 1–7 into `COLORS`/`PIECES` identifying which tetromino locked there.
-- **Pieces**: `PIECES` defines each tetromino as a square matrix of color indices. `current` and `next` are `{ type, shape, x, y }` objects; `randomPiece()` creates new ones.
+- **Board model**: `board` is a `ROWS × COLS` matrix; each cell is `0` (empty) or an index 1–8 into `COLORS`/`PIECES` identifying which piece locked there.
+- **Pieces**: `PIECES` defines each piece as a square matrix of color indices, including the 7 classic tetrominoes plus an 8th challenge piece, the "nut" (`NUT = 8`): a 3×3 ring (`[[8,8,8],[8,0,8],[8,8,8]]`) with an empty center that can never be filled by another piece, permanently blocking that row from being cleared (unless the row above it clears first, exposing the hole from above so a later piece can fill it). `current` and `next` are `{ type, shape, x, y }` objects; `randomPiece()` creates new ones, picking uniformly among all 8 types.
+- **Nut holes rendering**: `holes` is a render-only `ROWS × COLS` matrix (parallel to `board`, kept in sync in `merge()` and `clearLines()`) marking which locked cells are a nut's empty center, so `draw()`/`drawNext()` can paint a circle there via `drawNutHole()`. It never participates in collision or line-clear logic — `board` alone is the source of truth for those.
 - **Rotation**: `rotateCW(shape)` transposes + reverses rows. `tryRotate()` applies it and, on collision, attempts wall kicks via `kicks = [0, -1, 1, -2, 2]` (small horizontal offsets) before giving up.
 - **Collision**: `collide(shape, ox, oy)` checks board bounds and overlap with locked cells — the single source of truth used by movement, rotation, and drop logic.
 - **Game loop**: `loop(ts)` runs via `requestAnimationFrame`, accumulates elapsed time in `dropAccum`, and advances the piece down one row (or locks it) once `dropAccum >= dropInterval`.
