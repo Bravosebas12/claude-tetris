@@ -38,6 +38,8 @@ const BOMB_MIN_LINES = 4;
 const BOMB_MAX_LINES = 8;
 const BOMB_BLOCK_SCORE = 50;
 const BLAST_DURATION = 350; // ms de la animación de explosión
+const COMBO_MAX = 10;            // tope del multiplicador de racha
+const COMBO_FX_DURATION = 900;   // ms del aviso flotante "COMBO xN"
 
 const canvas = document.getElementById('board');
 const ctx = canvas.getContext('2d');
@@ -46,6 +48,8 @@ const nextCtx = nextCanvas.getContext('2d');
 const scoreEl = document.getElementById('score');
 const linesEl = document.getElementById('lines');
 const levelEl = document.getElementById('level');
+const comboEl = document.getElementById('combo');
+const comboSection = document.getElementById('combo-section');
 const overlay = document.getElementById('overlay');
 const overlayTitle = document.getElementById('overlay-title');
 const overlayScore = document.getElementById('overlay-score');
@@ -57,6 +61,7 @@ const THEME_STORAGE_KEY = 'tetris-theme';
 
 let board, holes, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId;
 let linesUntilBomb, blast, animClock;
+let combo, comboFx;
 
 function createBoard() {
   return Array.from({ length: ROWS }, () => new Array(COLS).fill(0));
@@ -124,7 +129,11 @@ function merge() {
   if (current.type === NUT) holes[current.y + 1][current.x + 1] = 1;
 }
 
-function clearLines() {
+function comboMultiplier() {
+  return Math.max(1, Math.min(combo, COMBO_MAX));
+}
+
+function clearLines(neutralTurn) {
   let cleared = 0;
   for (let r = ROWS - 1; r >= 0; r--) {
     if (board[r].every(v => v !== 0)) {
@@ -137,11 +146,16 @@ function clearLines() {
     }
   }
   if (cleared) {
+    combo++;
     lines += cleared;
     linesUntilBomb -= cleared;
-    score += (LINE_SCORES[cleared] || 0) * level;
+    score += (LINE_SCORES[cleared] || 0) * level * comboMultiplier();
     level = Math.floor(lines / 10) + 1;
     dropInterval = Math.max(100, 1000 - (level - 1) * 90);
+    if (combo >= 2) comboFx = { mult: comboMultiplier(), t: 0 };
+    updateHUD();
+  } else if (!neutralTurn && combo) {
+    combo = 0;
     updateHUD();
   }
 }
@@ -173,9 +187,10 @@ function softDrop() {
 
 function lockPiece() {
   if (gameOver) return;
-  if (current.type === BOMB) explode(current.x, current.y);
+  const isBomb = current.type === BOMB;
+  if (isBomb) explode(current.x, current.y);
   else merge();
-  clearLines();
+  clearLines(isBomb);
   spawn();
 }
 
@@ -226,6 +241,8 @@ function updateHUD() {
   scoreEl.textContent = score.toLocaleString();
   linesEl.textContent = lines;
   levelEl.textContent = level;
+  comboEl.textContent = 'x' + comboMultiplier();
+  comboSection.classList.toggle('combo-active', combo >= 2);
 }
 
 function drawBlock(context, x, y, colorIndex, size, alpha) {
@@ -354,6 +371,21 @@ function draw() {
     ctx.globalAlpha = 1;
   }
 
+  // aviso flotante de combo
+  if (comboFx) {
+    const t = Math.min(comboFx.t / COMBO_FX_DURATION, 1);
+    const alpha = 1 - t;
+    const cx = (COLS * BLOCK) / 2;
+    const cy = ROWS * BLOCK * 0.28 - t * 16;
+    ctx.globalAlpha = alpha;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font = 'bold 26px "Courier New", Courier, monospace';
+    ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--combo-color').trim() || '#ffb300';
+    ctx.fillText(`COMBO x${comboFx.mult}`, cx, cy);
+    ctx.globalAlpha = 1;
+  }
+
   if (gameOver) return;
 
   // ghost
@@ -422,6 +454,10 @@ function loop(ts) {
     blast.t += dt;
     if (blast.t >= BLAST_DURATION) blast = null;
   }
+  if (comboFx) {
+    comboFx.t += dt;
+    if (comboFx.t >= COMBO_FX_DURATION) comboFx = null;
+  }
   dropAccum += dt;
   if (dropAccum >= dropInterval) {
     dropAccum = 0;
@@ -450,6 +486,8 @@ function init() {
   linesUntilBomb = bombInterval();
   blast = null;
   animClock = 0;
+  combo = 0;
+  comboFx = null;
   next = randomPiece();
   spawn();
   updateHUD();
