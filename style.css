@@ -26,6 +26,9 @@
   --switch-border: #3a3a5a;
   --grid-line: #22222e;
   --combo-color: #ffb300;
+  --win-color: #81c784;
+  --timer-warn-color: #ffb300;
+  --timer-critical-color: #e57373;
 }
 
 [data-theme="light"] {
@@ -50,6 +53,9 @@
   --switch-border: #b8bcd1;
   --grid-line: #d8d8e8;
   --combo-color: #c77800;
+  --win-color: #2e7d32;
+  --timer-warn-color: #c77800;
+  --timer-critical-color: #c0392b;
 }
 
 body {
@@ -149,6 +155,38 @@ body {
   pointer-events: none;
 }
 
+/* ---- Toggle de modo ---- */
+.mode-toggle {
+  position: absolute;
+  top: 0;
+  right: 104px;
+  width: 34px;
+  height: 28px;
+  border-radius: 999px;
+  border: 1px solid var(--switch-border);
+  background: var(--switch-bg);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  line-height: 1;
+  transition: background 0.2s, border-color 0.2s, color 0.2s;
+}
+
+.mode-toggle:focus-visible {
+  outline: 2px solid var(--title-color);
+  outline-offset: 2px;
+}
+
+.mode-toggle[aria-checked="true"] {
+  border-color: var(--combo-color);
+}
+
+.mode-toggle-icon {
+  pointer-events: none;
+}
+
 .game-container {
   display: flex;
   gap: 20px;
@@ -221,6 +259,38 @@ body {
   }
 }
 
+/* la sección TIME solo existe en modo desafío */
+body:not(.mode-challenge) #timer-section {
+  display: none;
+}
+
+#timer-section .value {
+  transition: color 0.2s, text-shadow 0.2s;
+}
+
+#timer-section.timer-warn .value {
+  color: var(--timer-warn-color);
+  text-shadow: 0 0 8px var(--timer-warn-color);
+}
+
+#timer-section.timer-critical .value {
+  display: inline-block;
+  color: var(--timer-critical-color);
+  text-shadow: 0 0 8px var(--timer-critical-color);
+  animation: timer-tick 1s ease-out infinite;
+}
+
+@keyframes timer-tick {
+  0% { transform: scale(1.18); }
+  30%, 100% { transform: scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #timer-section.timer-critical .value {
+    animation: none;
+  }
+}
+
 #next-canvas {
   display: block;
   border: 1px solid var(--board-border);
@@ -285,6 +355,10 @@ kbd {
   font-weight: 800;
   letter-spacing: 4px;
   color: var(--overlay-title-color);
+}
+
+#overlay-title.overlay-win {
+  color: var(--win-color);
 }
 
 #overlay-score {

@@ -54,6 +54,15 @@ const SHAKE_HARD_DROP = { mag: 3, dur: 140 };
 const SHAKE_TETRIS = { mag: 6, dur: 260 };
 const SHAKE_BOMB = { mag: 8, dur: 320 };
 
+// ---- Modo desafío: 40 líneas en 2 minutos ----
+const MODE_CLASSIC = 'classic';
+const MODE_CHALLENGE = 'challenge';
+const MODE_STORAGE_KEY = 'tetris-mode';
+const CHALLENGE_LINES = 40;              // objetivo de líneas
+const CHALLENGE_TIME_MS = 120000;        // 2 minutos
+const CHALLENGE_WARN_MS = 30000;         // umbral de aviso en el HUD
+const CHALLENGE_CRITICAL_MS = 10000;     // umbral crítico en el HUD
+
 const canvas = document.getElementById('board');
 const ctx = canvas.getContext('2d');
 const nextCanvas = document.getElementById('next-canvas');
@@ -71,12 +80,17 @@ const themeToggle = document.getElementById('theme-toggle');
 const themeToggleIcon = themeToggle.querySelector('.theme-toggle-icon');
 const soundToggle = document.getElementById('sound-toggle');
 const soundToggleIcon = soundToggle.querySelector('.sound-toggle-icon');
+const modeToggle = document.getElementById('mode-toggle');
+const modeToggleIcon = modeToggle.querySelector('.mode-toggle-icon');
+const timerEl = document.getElementById('timer');
+const timerSection = document.getElementById('timer-section');
 
 const THEME_STORAGE_KEY = 'tetris-theme';
 
 let board, holes, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId;
 let linesUntilBomb, blast, animClock;
 let combo, comboFx;
+let mode, timeLeft, challengeWon, lastTimerText;
 
 // ---- Efectos visuales (solo render: nunca participan en colisiones ni puntuación) ----
 let particles;  // [] { x, y, vx, vy, life, maxLife, color, size }
@@ -213,6 +227,20 @@ const SFX = {
       const last = i === notes.length - 1;
       tone({ type: 'triangle', freq: f, dur: last ? 0.3 : 0.12, gain: 0.18, delay: i * 0.07 });
     });
+  },
+  win() {
+    // una sola voz por nota (como levelUp): la victoria puede coincidir con un tetris
+    // o un combo que ya encolaron varias voces, y MAX_VOICES no debe cortar la fanfarria
+    const notes = [523, 659, 784, 1047, 1319];
+    notes.forEach((f, i) => {
+      const last = i === notes.length - 1;
+      tone({ type: 'triangle', freq: f, dur: last ? 0.5 : 0.12, gain: 0.22, delay: i * 0.09 });
+    });
+  },
+  timeUp() {
+    tone({ type: 'square', freq: 440, dur: 0.18, gain: 0.16 });
+    tone({ type: 'square', freq: 440, dur: 0.18, gain: 0.16, delay: 0.24 });
+    tone({ type: 'sawtooth', freq: 330, freqTo: 110, dur: 0.5, gain: 0.16, delay: 0.5 });
   },
   bomb() {
     noise({ dur: 0.35, gain: 0.25, filterFrom: 2000, filterTo: 100 });
@@ -424,6 +452,11 @@ function clearLines(neutralTurn) {
     }
 
     updateHUD();
+
+    if (mode === MODE_CHALLENGE && lines >= CHALLENGE_LINES) {
+      banner = { text: '¡GANASTE!', t: 0, color: cssVar('--win-color', '#81c784') };
+      finishChallenge(true);
+    }
   } else if (!neutralTurn && combo) {
     combo = 0;
     updateHUD();
@@ -464,6 +497,7 @@ function lockPiece() {
   if (isBomb) explode(current.x, current.y);
   else { merge(); SFX.lock(); }
   clearLines(isBomb);
+  if (gameOver) return; // el desafío pudo terminar al limpiar la línea 40: no generar otra pieza
   spawn();
 }
 
@@ -515,11 +549,34 @@ function spawn() {
 
 function updateHUD() {
   scoreEl.textContent = score.toLocaleString();
-  linesEl.textContent = lines;
+  linesEl.textContent = mode === MODE_CHALLENGE ? `${lines} / ${CHALLENGE_LINES}` : lines;
   levelEl.textContent = level;
   comboEl.textContent = 'x' + comboMultiplier();
   comboSection.classList.toggle('combo-active', combo >= 2);
   comboSection.classList.toggle('combo-hot', combo >= 5);
+}
+
+function formatClock(ms) {
+  const total = Math.max(0, Math.ceil(ms / 1000)); // ceil: arranca en 2:00 y solo llega a 0:00 al expirar
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
+}
+
+function formatElapsed(ms) {
+  const t = Math.max(0, ms);
+  const m = Math.floor(t / 60000);
+  const s = Math.floor((t % 60000) / 1000);
+  const cs = Math.floor((t % 1000) / 10);
+  return `${m}:${String(s).padStart(2, '0')}.${String(cs).padStart(2, '0')}`;
+}
+
+function updateTimer() {
+  if (mode !== MODE_CHALLENGE) return;
+  const text = formatClock(timeLeft);
+  if (text === lastTimerText) return; // solo se escribe en el DOM al cambiar el segundo, no en cada frame
+  lastTimerText = text;
+  timerEl.textContent = text;
+  timerSection.classList.toggle('timer-warn', timeLeft <= CHALLENGE_WARN_MS);
+  timerSection.classList.toggle('timer-critical', timeLeft <= CHALLENGE_CRITICAL_MS);
 }
 
 function drawBlock(context, x, y, colorIndex, size, alpha) {
@@ -748,17 +805,40 @@ function drawNext() {
   if (next.type === NUT) drawNutHole(nextCtx, offX + 1, offY + 1, NB);
 }
 
-function endGame() {
-  if (gameOver) return;
+function stopRun() {
   gameOver = true;
   paused = false;
   cancelAnimationFrame(animId);
   animId = null;
   draw();
-  SFX.gameOver();
-  overlayTitle.textContent = 'GAME OVER';
-  overlayScore.textContent = `Puntuación: ${score.toLocaleString()}`;
+}
+
+function showOverlay(title, detail, won) {
+  overlayTitle.textContent = title;
+  overlayTitle.classList.toggle('overlay-win', !!won);
+  overlayScore.textContent = detail;
   overlay.classList.remove('hidden');
+}
+
+function endGame() {
+  if (gameOver) return;
+  stopRun();
+  SFX.gameOver();
+  showOverlay('GAME OVER', `Puntuación: ${score.toLocaleString()}`, false);
+}
+
+function finishChallenge(won) {
+  if (gameOver) return;
+  challengeWon = won;
+  stopRun();
+  if (won) {
+    SFX.win();
+    showOverlay('¡GANASTE!', `${CHALLENGE_LINES} líneas en ${formatElapsed(CHALLENGE_TIME_MS - timeLeft)} · ${score.toLocaleString()} pts`, true);
+  } else {
+    SFX.timeUp();
+    showOverlay('¡TIEMPO!', `${lines} / ${CHALLENGE_LINES} líneas · ${score.toLocaleString()} pts`, false);
+  }
+  updateTimer();
 }
 
 function togglePause() {
@@ -769,9 +849,7 @@ function togglePause() {
     loop(lastTime);
   } else {
     cancelAnimationFrame(animId);
-    overlayTitle.textContent = 'PAUSA';
-    overlayScore.textContent = '';
-    overlay.classList.remove('hidden');
+    showOverlay('PAUSA', '', false);
   }
 }
 
@@ -780,6 +858,7 @@ function loop(ts) {
   const dt = ts - lastTime;
   lastTime = ts;
   animClock += dt;
+  if (mode === MODE_CHALLENGE) timeLeft -= dt;
   tickEffects(dt);
   if (blast) {
     blast.t += dt;
@@ -798,6 +877,12 @@ function loop(ts) {
       lockPiece();
     }
   }
+  if (mode === MODE_CHALLENGE && !gameOver && timeLeft <= 0) {
+    banner = { text: '¡TIEMPO!', t: 0, color: cssVar('--timer-critical-color', '#e57373') };
+    finishChallenge(false);
+    return; // finishChallenge ya dibujó y canceló el rAF
+  }
+  updateTimer();
   draw();
   if (gameOver) return;
   animId = requestAnimationFrame(loop);
@@ -823,9 +908,13 @@ function init() {
   flashes = [];
   banner = null;
   shake = null;
+  timeLeft = CHALLENGE_TIME_MS;
+  challengeWon = false;
+  lastTimerText = '';
   next = randomPiece();
   spawn();
   updateHUD();
+  updateTimer();
   overlay.classList.add('hidden');
   cancelAnimationFrame(animId);
   animId = requestAnimationFrame(loop);
@@ -835,6 +924,7 @@ document.addEventListener('keydown', e => {
   unlockAudio(); // toda tecla es un gesto de usuario válido para desbloquear el audio
   if (e.code === 'KeyM') { setMuted(!muted); return; } // funciona incluso en pausa/game-over, como KeyP
   if (e.code === 'KeyP') { togglePause(); return; }
+  if (e.code === 'KeyC') { toggleMode(); return; }
   if (paused || gameOver) return;
   switch (e.code) {
     case 'ArrowLeft':
@@ -882,6 +972,34 @@ themeToggle.addEventListener('click', () => {
 
 soundToggle.addEventListener('click', () => { unlockAudio(); setMuted(!muted); });
 
+function applyMode(m) {
+  mode = m;
+  const challenge = m === MODE_CHALLENGE;
+  document.body.classList.toggle('mode-challenge', challenge);
+  modeToggle.setAttribute('aria-checked', challenge ? 'true' : 'false');
+  modeToggle.setAttribute('aria-label', challenge ? 'Cambiar a modo clásico' : 'Cambiar a modo desafío');
+  modeToggleIcon.textContent = challenge ? '⏱️' : '∞';
+}
+
+function initMode() {
+  const saved = localStorage.getItem(MODE_STORAGE_KEY);
+  applyMode(saved === MODE_CHALLENGE ? MODE_CHALLENGE : MODE_CLASSIC);
+}
+
+function toggleMode() {
+  const next = mode === MODE_CHALLENGE ? MODE_CLASSIC : MODE_CHALLENGE;
+  localStorage.setItem(MODE_STORAGE_KEY, next);
+  applyMode(next);
+  init(); // cambiar de modo reinicia la partida
+}
+
+modeToggle.addEventListener('click', () => {
+  unlockAudio();
+  modeToggle.blur(); // el listener de keydown vive en document: si el botón conserva el foco, Enter lo reactivaría y reiniciaría la partida
+  toggleMode();
+});
+
 initTheme();
 initSound();
+initMode();
 init();
