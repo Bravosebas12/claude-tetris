@@ -117,6 +117,38 @@ body {
   transform: translateX(24px);
 }
 
+/* ---- Toggle de sonido ---- */
+.sound-toggle {
+  position: absolute;
+  top: 0;
+  right: 62px;
+  width: 34px;
+  height: 28px;
+  border-radius: 999px;
+  border: 1px solid var(--switch-border);
+  background: var(--switch-bg);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  line-height: 1;
+  transition: background 0.2s, border-color 0.2s, opacity 0.2s;
+}
+
+.sound-toggle:focus-visible {
+  outline: 2px solid var(--title-color);
+  outline-offset: 2px;
+}
+
+.sound-toggle[aria-checked="false"] {
+  opacity: 0.55;
+}
+
+.sound-toggle-icon {
+  pointer-events: none;
+}
+
 .game-container {
   display: flex;
   gap: 20px;
@@ -173,9 +205,20 @@ body {
   animation: combo-pulse 0.25s ease-out;
 }
 
+/* combo alto (x5+): mismo pulso, glow más intenso para que se note el salto de tier */
+#combo-section.combo-hot .value {
+  text-shadow: 0 0 8px var(--combo-color), 0 0 18px var(--combo-color);
+}
+
 @keyframes combo-pulse {
   0% { transform: scale(1.25); }
   100% { transform: scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #combo-section.combo-active .value {
+    animation: none;
+  }
 }
 
 #next-canvas {

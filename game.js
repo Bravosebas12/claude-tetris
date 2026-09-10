@@ -41,6 +41,19 @@ const BLAST_DURATION = 350; // ms de la animación de explosión
 const COMBO_MAX = 10;            // tope del multiplicador de racha
 const COMBO_FX_DURATION = 900;   // ms del aviso flotante "COMBO xN"
 
+const SOUND_STORAGE_KEY = 'tetris-muted';
+const MASTER_VOLUME = 0.35;   // volumen base, cómodo y no estridente
+const MAX_VOICES = 14;        // tope de osciladores/ruidos simultáneos
+const MOVE_SFX_THROTTLE = 40; // ms mínimos entre sonidos repetitivos (mover/rotar/soft drop)
+
+const MAX_PARTICLES = 180;      // tope de partículas vivas a la vez
+const FLASH_DURATION = 260;     // ms del destello de una línea limpiada
+const BANNER_DURATION = 800;    // ms del banner "TETRIS!" / "NIVEL N"
+const PARTICLE_GRAVITY = 0.35;  // aceleración vertical de las partículas
+const SHAKE_HARD_DROP = { mag: 3, dur: 140 };
+const SHAKE_TETRIS = { mag: 6, dur: 260 };
+const SHAKE_BOMB = { mag: 8, dur: 320 };
+
 const canvas = document.getElementById('board');
 const ctx = canvas.getContext('2d');
 const nextCanvas = document.getElementById('next-canvas');
@@ -56,12 +69,238 @@ const overlayScore = document.getElementById('overlay-score');
 const restartBtn = document.getElementById('restart-btn');
 const themeToggle = document.getElementById('theme-toggle');
 const themeToggleIcon = themeToggle.querySelector('.theme-toggle-icon');
+const soundToggle = document.getElementById('sound-toggle');
+const soundToggleIcon = soundToggle.querySelector('.sound-toggle-icon');
 
 const THEME_STORAGE_KEY = 'tetris-theme';
 
 let board, holes, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId;
 let linesUntilBomb, blast, animClock;
 let combo, comboFx;
+
+// ---- Efectos visuales (solo render: nunca participan en colisiones ni puntuación) ----
+let particles;  // [] { x, y, vx, vy, life, maxLife, color, size }
+let flashes;    // [] { row, t }
+let banner;     // { text, t, color } | null -> "TETRIS!" / "NIVEL N"
+let shake;      // { t, dur, mag } | null
+
+// ---- Motor de audio ----
+let audioCtx = null;
+let masterGain = null;
+let muted = false;
+let voices = 0;
+let noiseBuffer = null;
+const lastPlayed = {};
+
+const cssVarCache = {};
+function cssVar(name, fallback) {
+  if (!(name in cssVarCache)) {
+    cssVarCache[name] = getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
+  }
+  return cssVarCache[name];
+}
+
+// ---------------------------------------------------------------------------
+// Audio: todo sintetizado con Web Audio API, sin archivos ni dependencias.
+// Fire-and-forget: nunca bloquea el loop ni afecta el estado del juego.
+// ---------------------------------------------------------------------------
+
+function unlockAudio() {
+  const AC = window.AudioContext || window.webkitAudioContext;
+  if (!AC) return; // navegador sin soporte: el juego sigue funcionando sin sonido
+  if (!audioCtx) {
+    audioCtx = new AC();
+    masterGain = audioCtx.createGain();
+    masterGain.gain.value = muted ? 0 : MASTER_VOLUME;
+    masterGain.connect(audioCtx.destination);
+  }
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+}
+
+function getNoiseBuffer() {
+  if (!noiseBuffer) {
+    const len = audioCtx.sampleRate * 0.5;
+    noiseBuffer = audioCtx.createBuffer(1, len, audioCtx.sampleRate);
+    const data = noiseBuffer.getChannelData(0);
+    for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
+  }
+  return noiseBuffer;
+}
+
+// Tono simple: oscilador + envolvente exponencial attack/decay (evita clicks).
+function tone({ type = 'square', freq = 440, freqTo = 0, dur = 0.12, gain = 0.2, delay = 0, attack = 0.006 } = {}) {
+  if (!audioCtx || muted || voices >= MAX_VOICES) return;
+  const t0 = audioCtx.currentTime + delay;
+  const osc = audioCtx.createOscillator();
+  const g = audioCtx.createGain();
+  osc.type = type;
+  osc.frequency.setValueAtTime(freq, t0);
+  if (freqTo) osc.frequency.exponentialRampToValueAtTime(Math.max(20, freqTo), t0 + dur);
+  g.gain.setValueAtTime(0.0001, t0);
+  g.gain.exponentialRampToValueAtTime(gain, t0 + attack);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  osc.connect(g);
+  g.connect(masterGain);
+  voices++;
+  osc.onended = () => { voices--; osc.disconnect(); g.disconnect(); };
+  osc.start(t0);
+  osc.stop(t0 + dur + 0.02);
+}
+
+// Ráfaga de ruido filtrado: para el impacto de la bomba y el thud del hard drop.
+function noise({ dur = 0.3, gain = 0.2, delay = 0, filterFrom = 2000, filterTo = 200 } = {}) {
+  if (!audioCtx || muted || voices >= MAX_VOICES) return;
+  const t0 = audioCtx.currentTime + delay;
+  const src = audioCtx.createBufferSource();
+  src.buffer = getNoiseBuffer();
+  const filter = audioCtx.createBiquadFilter();
+  filter.type = 'lowpass';
+  filter.frequency.setValueAtTime(filterFrom, t0);
+  filter.frequency.exponentialRampToValueAtTime(Math.max(40, filterTo), t0 + dur);
+  const g = audioCtx.createGain();
+  g.gain.setValueAtTime(0.0001, t0);
+  g.gain.exponentialRampToValueAtTime(gain, t0 + 0.008);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  src.connect(filter);
+  filter.connect(g);
+  g.connect(masterGain);
+  voices++;
+  src.onended = () => { voices--; src.disconnect(); filter.disconnect(); g.disconnect(); };
+  src.start(t0);
+  src.stop(t0 + dur + 0.02);
+}
+
+// Deja pasar como mucho un sonido de tipo `key` cada MOVE_SFX_THROTTLE ms.
+function throttled(key, fn) {
+  const now = (audioCtx ? audioCtx.currentTime * 1000 : 0);
+  if (lastPlayed[key] !== undefined && now - lastPlayed[key] < MOVE_SFX_THROTTLE) return;
+  lastPlayed[key] = now;
+  fn();
+}
+
+const SFX = {
+  move() { throttled('move', () => tone({ type: 'square', freq: 200, dur: 0.03, gain: 0.06 })); },
+  rotate() { throttled('rotate', () => tone({ type: 'square', freq: 320, freqTo: 460, dur: 0.05, gain: 0.08 })); },
+  softDrop() { throttled('softDrop', () => tone({ type: 'triangle', freq: 150, dur: 0.025, gain: 0.05 })); },
+  hardDrop() {
+    tone({ type: 'sawtooth', freq: 190, freqTo: 55, dur: 0.13, gain: 0.18 });
+    noise({ dur: 0.1, gain: 0.12, filterFrom: 900, filterTo: 120 });
+  },
+  lock() { tone({ type: 'square', freq: 130, dur: 0.05, gain: 0.1 }); },
+  clear(n) {
+    const notes = [523, 659, 784];
+    for (let i = 0; i < n; i++) {
+      tone({ type: 'triangle', freq: notes[Math.min(i, notes.length - 1)], dur: 0.09, gain: 0.16, delay: i * 0.05 });
+    }
+  },
+  tetris() {
+    const notes = [523, 659, 784, 1047];
+    notes.forEach((f, i) => {
+      tone({ type: 'square', freq: f, dur: 0.14, gain: 0.2, delay: i * 0.06 });
+      tone({ type: 'sawtooth', freq: f / 2, dur: 0.14, gain: 0.08, delay: i * 0.06 });
+    });
+  },
+  combo(mult) {
+    const tier = Math.min(mult, COMBO_MAX);
+    const base = 392 * Math.pow(2, tier / 12);
+    const gain = 0.12 + 0.01 * tier;
+    tone({ type: 'square', freq: base, dur: 0.09, gain });
+    tone({ type: 'square', freq: base * 1.5, dur: 0.11, gain, delay: 0.05 });
+  },
+  levelUp() {
+    const notes = [523, 659, 784, 1047];
+    notes.forEach((f, i) => {
+      const last = i === notes.length - 1;
+      tone({ type: 'triangle', freq: f, dur: last ? 0.3 : 0.12, gain: 0.18, delay: i * 0.07 });
+    });
+  },
+  bomb() {
+    noise({ dur: 0.35, gain: 0.25, filterFrom: 2000, filterTo: 100 });
+    tone({ type: 'sawtooth', freq: 220, freqTo: 40, dur: 0.3, gain: 0.15 });
+  },
+  gameOver() {
+    const notes = [440, 349, 294, 220];
+    notes.forEach((f, i) => tone({ type: 'triangle', freq: f, dur: 0.2, gain: 0.16, delay: i * 0.16 }));
+  },
+};
+
+function setMuted(v) {
+  muted = v;
+  if (masterGain) masterGain.gain.value = muted ? 0 : MASTER_VOLUME;
+  localStorage.setItem(SOUND_STORAGE_KEY, muted ? '1' : '0');
+  soundToggle.setAttribute('aria-checked', muted ? 'false' : 'true');
+  soundToggle.setAttribute('aria-label', muted ? 'Activar sonido' : 'Silenciar sonido');
+  soundToggleIcon.textContent = muted ? '🔇' : '🔊';
+}
+
+function initSound() {
+  setMuted(localStorage.getItem(SOUND_STORAGE_KEY) === '1');
+}
+
+// ---------------------------------------------------------------------------
+// Efectos visuales: partículas, destellos de línea, banner y sacudida de
+// pantalla. Todo es estado de solo render, igual que `holes` — nunca toca
+// board/current/score/combo ni la lógica de colisión.
+// ---------------------------------------------------------------------------
+
+function shakeScreen(mag, dur) {
+  if (!shake || mag >= shake.mag) shake = { t: 0, dur, mag };
+}
+
+function spawnParticles(cx, cy, count, color) {
+  const room = MAX_PARTICLES - particles.length;
+  const n = Math.max(0, Math.min(count, room));
+  for (let i = 0; i < n; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = 1 + Math.random() * 3;
+    particles.push({
+      x: cx,
+      y: cy,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed - 1.5,
+      life: 300 + Math.random() * 300,
+      maxLife: 600,
+      color,
+      size: 2 + Math.random() * 3,
+    });
+  }
+}
+
+function spawnLineParticles(row, color) {
+  for (let c = 0; c < COLS; c += 2) {
+    spawnParticles((c + 0.5) * BLOCK, (row + 0.5) * BLOCK, 3, color);
+  }
+}
+
+function tickEffects(dt) {
+  for (let i = flashes.length - 1; i >= 0; i--) {
+    flashes[i].t += dt;
+    if (flashes[i].t >= FLASH_DURATION) flashes.splice(i, 1);
+  }
+  if (banner) {
+    banner.t += dt;
+    if (banner.t >= BANNER_DURATION) banner = null;
+  }
+  if (shake) {
+    shake.t += dt;
+    if (shake.t >= shake.dur) shake = null;
+  }
+  const step = dt / 16;
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.vy += PARTICLE_GRAVITY * step;
+    p.x += p.vx * step;
+    p.y += p.vy * step;
+    p.life -= dt;
+    if (p.life <= 0) particles.splice(i, 1);
+  }
+}
+
+function pulseCombo() {
+  comboSection.classList.remove('combo-active');
+  void comboSection.offsetWidth; // fuerza reflow para poder reiniciar la animación CSS
+  comboSection.classList.add('combo-active');
+}
 
 function createBoard() {
   return Array.from({ length: ROWS }, () => new Array(COLS).fill(0));
@@ -107,16 +346,17 @@ function rotateCW(shape) {
 }
 
 function tryRotate() {
-  if (gameOver || paused) return;
+  if (gameOver || paused) return false;
   const rotated = rotateCW(current.shape);
   const kicks = [0, -1, 1, -2, 2];
   for (const kick of kicks) {
     if (!collide(rotated, current.x + kick, current.y)) {
       current.shape = rotated;
       current.x += kick;
-      return;
+      return true;
     }
   }
+  return false;
 }
 
 function merge() {
@@ -134,25 +374,55 @@ function comboMultiplier() {
 }
 
 function clearLines(neutralTurn) {
-  let cleared = 0;
+  // Se captura fila y colores ANTES del splice: una vez spliceada la fila
+  // desaparece del board, así que es el único momento en que el flash/las
+  // partículas pueden saber dónde y de qué color pintarse.
+  const clearedRows = [];
   for (let r = ROWS - 1; r >= 0; r--) {
     if (board[r].every(v => v !== 0)) {
+      clearedRows.push({ row: r, colors: board[r].slice() });
       board.splice(r, 1);
       board.unshift(new Array(COLS).fill(0));
       holes.splice(r, 1);
       holes.unshift(new Array(COLS).fill(0));
-      cleared++;
       r++;
     }
   }
+  const cleared = clearedRows.length;
   if (cleared) {
+    const prevLevel = level;
     combo++;
     lines += cleared;
     linesUntilBomb -= cleared;
     score += (LINE_SCORES[cleared] || 0) * level * comboMultiplier();
     level = Math.floor(lines / 10) + 1;
     dropInterval = Math.max(100, 1000 - (level - 1) * 90);
-    if (combo >= 2) comboFx = { mult: comboMultiplier(), t: 0 };
+
+    clearedRows.forEach(({ row, colors }) => {
+      flashes.push({ row, t: 0 });
+      const midColor = COLORS[colors[Math.floor(COLS / 2)]] || cssVar('--combo-color', '#ffb300');
+      spawnLineParticles(row, midColor);
+    });
+
+    if (cleared >= 4) {
+      SFX.tetris();
+      banner = { text: '¡TETRIS!', t: 0, color: cssVar('--combo-color', '#ffb300') };
+      shakeScreen(SHAKE_TETRIS.mag, SHAKE_TETRIS.dur);
+    } else {
+      SFX.clear(cleared);
+    }
+
+    if (combo >= 2) {
+      comboFx = { mult: comboMultiplier(), t: 0 };
+      pulseCombo();
+      SFX.combo(comboMultiplier());
+    }
+
+    if (level > prevLevel) {
+      banner = { text: `NIVEL ${level}`, t: 0, color: cssVar('--value-color', '#7aa2f7') };
+      SFX.levelUp();
+    }
+
     updateHUD();
   } else if (!neutralTurn && combo) {
     combo = 0;
@@ -171,6 +441,8 @@ function hardDrop() {
   const gy = ghostY();
   score += (gy - current.y) * 2;
   current.y = gy;
+  SFX.hardDrop();
+  shakeScreen(SHAKE_HARD_DROP.mag, SHAKE_HARD_DROP.dur);
   lockPiece();
 }
 
@@ -179,6 +451,7 @@ function softDrop() {
   if (!collide(current.shape, current.x, current.y + 1)) {
     current.y++;
     score += 1;
+    SFX.softDrop();
     updateHUD();
   } else {
     lockPiece();
@@ -189,7 +462,7 @@ function lockPiece() {
   if (gameOver) return;
   const isBomb = current.type === BOMB;
   if (isBomb) explode(current.x, current.y);
-  else merge();
+  else { merge(); SFX.lock(); }
   clearLines(isBomb);
   spawn();
 }
@@ -212,6 +485,9 @@ function explode(cx, cy) {
     updateHUD();
   }
   blast = { cx, cy, t: 0 };
+  SFX.bomb();
+  shakeScreen(SHAKE_BOMB.mag, SHAKE_BOMB.dur);
+  spawnParticles((cx + 0.5) * BLOCK, (cy + 0.5) * BLOCK, 24, cssVar('--combo-color', '#ffb300'));
   cols.forEach(collapseColumn);
 }
 
@@ -243,6 +519,7 @@ function updateHUD() {
   levelEl.textContent = level;
   comboEl.textContent = 'x' + comboMultiplier();
   comboSection.classList.toggle('combo-active', combo >= 2);
+  comboSection.classList.toggle('combo-hot', combo >= 5);
 }
 
 function drawBlock(context, x, y, colorIndex, size, alpha) {
@@ -310,7 +587,7 @@ function drawBomb(context, x, y, size, alpha) {
 function drawNutHole(context, x, y, size, alpha) {
   drawBlock(context, x, y, NUT, size, alpha);
   context.globalAlpha = alpha ?? 1;
-  context.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--board-bg').trim() || '#1a1a25';
+  context.fillStyle = cssVar('--board-bg', '#1a1a25');
   context.beginPath();
   context.arc(x * size + size / 2, y * size + size / 2, size * 0.28, 0, Math.PI * 2);
   context.fill();
@@ -321,7 +598,7 @@ function drawNutHole(context, x, y, size, alpha) {
 }
 
 function drawGrid() {
-  ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--grid-line').trim() || '#22222e';
+  ctx.strokeStyle = cssVar('--grid-line', '#22222e');
   ctx.lineWidth = 0.5;
   for (let c = 1; c < COLS; c++) {
     ctx.beginPath();
@@ -338,7 +615,13 @@ function drawGrid() {
 }
 
 function draw() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.clearRect(0, 0, canvas.width, canvas.height); // limpia TODO el canvas, antes de aplicar el shake
+  ctx.save();
+  if (shake) {
+    const k = 1 - shake.t / shake.dur; // decae linealmente hasta 0
+    ctx.translate(Math.sin(shake.t / 9) * shake.mag * k, Math.cos(shake.t / 7) * shake.mag * k);
+  }
+
   drawGrid();
 
   // board
@@ -350,6 +633,24 @@ function draw() {
   for (let r = 0; r < ROWS; r++)
     for (let c = 0; c < COLS; c++)
       if (holes[r][c]) drawNutHole(ctx, c, r, BLOCK);
+
+  // destello de líneas recién limpiadas (se estrecha hacia el centro de la fila)
+  flashes.forEach(f => {
+    const t = f.t / FLASH_DURATION;
+    const inset = (BLOCK / 2) * t;
+    ctx.globalAlpha = (1 - t) * 0.85;
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, f.row * BLOCK + inset, COLS * BLOCK, BLOCK - inset * 2);
+    ctx.globalAlpha = 1;
+  });
+
+  // partículas (línea limpiada / explosión de bomba)
+  particles.forEach(p => {
+    ctx.globalAlpha = Math.max(0, p.life / p.maxLife);
+    ctx.fillStyle = p.color;
+    ctx.fillRect(p.x, p.y, p.size, p.size);
+  });
+  ctx.globalAlpha = 1;
 
   // animación de explosión de bomba
   if (blast) {
@@ -371,22 +672,48 @@ function draw() {
     ctx.globalAlpha = 1;
   }
 
-  // aviso flotante de combo
+  // aviso flotante de combo: pop de entrada + color según el tier del multiplicador
   if (comboFx) {
     const t = Math.min(comboFx.t / COMBO_FX_DURATION, 1);
     const alpha = 1 - t;
-    const cx = (COLS * BLOCK) / 2;
-    const cy = ROWS * BLOCK * 0.28 - t * 16;
+    const pop = 1 + 0.5 * Math.pow(1 - Math.min(t * 4, 1), 3);
+    const mult = comboFx.mult;
+    const color = mult >= 10 ? '#4dd0e1' : mult >= 7 ? '#f06292' : mult >= 4 ? '#ff8a3d' : cssVar('--combo-color', '#ffb300');
+    ctx.save();
     ctx.globalAlpha = alpha;
+    ctx.translate((COLS * BLOCK) / 2, ROWS * BLOCK * 0.28 - t * 16);
+    ctx.scale(pop, pop);
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.font = 'bold 26px "Courier New", Courier, monospace';
-    ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--combo-color').trim() || '#ffb300';
-    ctx.fillText(`COMBO x${comboFx.mult}`, cx, cy);
-    ctx.globalAlpha = 1;
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 14;
+    ctx.fillStyle = color;
+    ctx.fillText(`COMBO x${mult}`, 0, 0);
+    ctx.restore();
   }
 
-  if (gameOver) return;
+  // banner de logro especial: "¡TETRIS!" / "NIVEL N"
+  if (banner) {
+    const t = banner.t / BANNER_DURATION;
+    const pop = 1 + 0.4 * Math.pow(1 - Math.min(t * 5, 1), 3);
+    const alpha = t > 0.65 ? Math.max(0, 1 - (t - 0.65) / 0.35) : 1;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.translate((COLS * BLOCK) / 2, ROWS * BLOCK * 0.45);
+    ctx.scale(pop, pop);
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font = 'bold 30px "Courier New", Courier, monospace';
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = 'rgba(0,0,0,0.55)';
+    ctx.strokeText(banner.text, 0, 0);
+    ctx.fillStyle = banner.color;
+    ctx.fillText(banner.text, 0, 0);
+    ctx.restore();
+  }
+
+  if (gameOver) { ctx.restore(); return; }
 
   // ghost
   const gy = ghostY();
@@ -401,6 +728,8 @@ function draw() {
     for (let c = 0; c < current.shape[r].length; c++)
       drawBlock(ctx, current.x + c, current.y + r, current.shape[r][c], BLOCK);
   if (current.type === NUT) drawNutHole(ctx, current.x + 1, current.y + 1, BLOCK);
+
+  ctx.restore();
 }
 
 function drawNext() {
@@ -426,6 +755,7 @@ function endGame() {
   cancelAnimationFrame(animId);
   animId = null;
   draw();
+  SFX.gameOver();
   overlayTitle.textContent = 'GAME OVER';
   overlayScore.textContent = `Puntuación: ${score.toLocaleString()}`;
   overlay.classList.remove('hidden');
@@ -450,6 +780,7 @@ function loop(ts) {
   const dt = ts - lastTime;
   lastTime = ts;
   animClock += dt;
+  tickEffects(dt);
   if (blast) {
     blast.t += dt;
     if (blast.t >= BLAST_DURATION) blast = null;
@@ -488,6 +819,10 @@ function init() {
   animClock = 0;
   combo = 0;
   comboFx = null;
+  particles = [];
+  flashes = [];
+  banner = null;
+  shake = null;
   next = randomPiece();
   spawn();
   updateHUD();
@@ -497,21 +832,23 @@ function init() {
 }
 
 document.addEventListener('keydown', e => {
+  unlockAudio(); // toda tecla es un gesto de usuario válido para desbloquear el audio
+  if (e.code === 'KeyM') { setMuted(!muted); return; } // funciona incluso en pausa/game-over, como KeyP
   if (e.code === 'KeyP') { togglePause(); return; }
   if (paused || gameOver) return;
   switch (e.code) {
     case 'ArrowLeft':
-      if (!collide(current.shape, current.x - 1, current.y)) current.x--;
+      if (!collide(current.shape, current.x - 1, current.y)) { current.x--; SFX.move(); }
       break;
     case 'ArrowRight':
-      if (!collide(current.shape, current.x + 1, current.y)) current.x++;
+      if (!collide(current.shape, current.x + 1, current.y)) { current.x++; SFX.move(); }
       break;
     case 'ArrowDown':
       softDrop();
       break;
     case 'ArrowUp':
     case 'KeyX':
-      tryRotate();
+      if (tryRotate()) SFX.rotate();
       break;
     case 'Space':
       e.preventDefault();
@@ -521,13 +858,14 @@ document.addEventListener('keydown', e => {
   updateHUD();
 });
 
-restartBtn.addEventListener('click', init);
+restartBtn.addEventListener('click', () => { unlockAudio(); init(); });
 
 function applyTheme(theme) {
   document.documentElement.setAttribute('data-theme', theme);
   themeToggle.setAttribute('aria-checked', theme === 'light' ? 'true' : 'false');
   themeToggle.setAttribute('aria-label', theme === 'light' ? 'Cambiar a modo oscuro' : 'Cambiar a modo claro');
   themeToggleIcon.textContent = theme === 'light' ? '☀️' : '🌙';
+  for (const key in cssVarCache) delete cssVarCache[key]; // los colores del tema cambiaron: invalidar caché
 }
 
 function initTheme() {
@@ -536,10 +874,14 @@ function initTheme() {
 }
 
 themeToggle.addEventListener('click', () => {
+  unlockAudio();
   const next = document.documentElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
   localStorage.setItem(THEME_STORAGE_KEY, next);
   applyTheme(next);
 });
 
+soundToggle.addEventListener('click', () => { unlockAudio(); setMuted(!muted); });
+
 initTheme();
+initSound();
 init();
