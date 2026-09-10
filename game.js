@@ -54,6 +54,12 @@ const SHAKE_HARD_DROP = { mag: 3, dur: 140 };
 const SHAKE_TETRIS = { mag: 6, dur: 260 };
 const SHAKE_BOMB = { mag: 8, dur: 320 };
 
+// ---- Barra de energía: se llena limpiando líneas y dispara sola al llenarse ----
+const ENERGY_MAX = 100;
+const ENERGY_GAIN = [0, 10, 25, 45, 70]; // índice = líneas limpiadas de golpe (bonus por multi-línea)
+const ENERGY_FX_DURATION = 600; // ms del barrido en la fila inferior al disparar
+const SHAKE_ZAP = { mag: 5, dur: 200 };
+
 // ---- Modo desafío: 40 líneas en 2 minutos ----
 const MODE_CLASSIC = 'classic';
 const MODE_CHALLENGE = 'challenge';
@@ -84,12 +90,15 @@ const modeToggle = document.getElementById('mode-toggle');
 const modeToggleIcon = modeToggle.querySelector('.mode-toggle-icon');
 const timerEl = document.getElementById('timer');
 const timerSection = document.getElementById('timer-section');
+const energySection = document.getElementById('energy-section');
+const energyFillEl = document.getElementById('energy-fill');
 
 const THEME_STORAGE_KEY = 'tetris-theme';
 
 let board, holes, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId;
 let linesUntilBomb, blast, animClock;
 let combo, comboFx;
+let energy, energyReady, energyFx, lastEnergyPct;
 let mode, timeLeft, challengeWon, lastTimerText;
 
 // ---- Efectos visuales (solo render: nunca participan en colisiones ni puntuación) ----
@@ -246,6 +255,15 @@ const SFX = {
     noise({ dur: 0.35, gain: 0.25, filterFrom: 2000, filterTo: 100 });
     tone({ type: 'sawtooth', freq: 220, freqTo: 40, dur: 0.3, gain: 0.15 });
   },
+  energyFull() {
+    // arpegio ascendente corto, misma forma que levelUp() pero más brillante
+    [659, 880, 1175].forEach((f, i) =>
+      tone({ type: 'triangle', freq: f, dur: i === 2 ? 0.26 : 0.1, gain: 0.16, delay: i * 0.06 }));
+  },
+  zap() {
+    noise({ dur: 0.25, gain: 0.2, filterFrom: 4000, filterTo: 400 });
+    tone({ type: 'sawtooth', freq: 900, freqTo: 120, dur: 0.22, gain: 0.16 });
+  },
   gameOver() {
     const notes = [440, 349, 294, 220];
     notes.forEach((f, i) => tone({ type: 'triangle', freq: f, dur: 0.2, gain: 0.16, delay: i * 0.16 }));
@@ -312,6 +330,10 @@ function tickEffects(dt) {
   if (shake) {
     shake.t += dt;
     if (shake.t >= shake.dur) shake = null;
+  }
+  if (energyFx) {
+    energyFx.t += dt;
+    if (energyFx.t >= ENERGY_FX_DURATION) energyFx = null;
   }
   const step = dt / 16;
   for (let i = particles.length - 1; i >= 0; i--) {
@@ -426,6 +448,11 @@ function clearLines(neutralTurn) {
     level = Math.floor(lines / 10) + 1;
     dropInterval = Math.max(100, 1000 - (level - 1) * 90);
 
+    if (!energyReady) {
+      energy = Math.min(ENERGY_MAX, energy + (ENERGY_GAIN[cleared] || ENERGY_GAIN[4]));
+      if (energy >= ENERGY_MAX) { energyReady = true; SFX.energyFull(); }
+    }
+
     clearedRows.forEach(({ row, colors }) => {
       flashes.push({ row, t: 0 });
       const midColor = COLORS[colors[Math.floor(COLS / 2)]] || cssVar('--combo-color', '#ffb300');
@@ -452,14 +479,19 @@ function clearLines(neutralTurn) {
     }
 
     updateHUD();
-
-    if (mode === MODE_CHALLENGE && lines >= CHALLENGE_LINES) {
-      banner = { text: '¡GANASTE!', t: 0, color: cssVar('--win-color', '#81c784') };
-      finishChallenge(true);
-    }
+    checkChallengeWin();
   } else if (!neutralTurn && combo) {
     combo = 0;
     updateHUD();
+  }
+}
+
+// Compartida por clearLines() y zapBottomRow(): ambas pueden hacer crecer `lines`
+// hasta el objetivo del desafío.
+function checkChallengeWin() {
+  if (mode === MODE_CHALLENGE && !gameOver && lines >= CHALLENGE_LINES) {
+    banner = { text: '¡GANASTE!', t: 0, color: cssVar('--win-color', '#81c784') };
+    finishChallenge(true);
   }
 }
 
@@ -498,6 +530,17 @@ function lockPiece() {
   else { merge(); SFX.lock(); }
   clearLines(isBomb);
   if (gameOver) return; // el desafío pudo terminar al limpiar la línea 40: no generar otra pieza
+
+  // Habilidad automática de la barra de energía: solo se dispara si la fila
+  // inferior tiene algo que borrar, así una barra llena con esa fila vacía
+  // (p. ej. por un Tetris reciente) queda a la espera en vez de desperdiciarse.
+  if (energyReady && board[ROWS - 1].some(v => v !== 0)) {
+    energyReady = false;
+    energy = 0;
+    zapBottomRow();
+    if (gameOver) return; // el zap pudo cerrar el desafío al llegar a la línea 40
+  }
+
   spawn();
 }
 
@@ -523,6 +566,42 @@ function explode(cx, cy) {
   shakeScreen(SHAKE_BOMB.mag, SHAKE_BOMB.dur);
   spawnParticles((cx + 0.5) * BLOCK, (cy + 0.5) * BLOCK, 24, cssVar('--combo-color', '#ffb300'));
   cols.forEach(collapseColumn);
+}
+
+// Habilidad de la barra de energía: elimina la fila inferior completa.
+// No otorga energía ni toca `combo`, así que no puede encadenarse consigo misma.
+function zapBottomRow() {
+  const row = ROWS - 1;
+  const colors = board[row].slice(); // capturar ANTES del splice, igual que en clearLines()
+  const destroyed = board[row].filter(v => v !== 0).length;
+
+  board.splice(row, 1);
+  board.unshift(new Array(COLS).fill(0));
+  holes.splice(row, 1);
+  holes.unshift(new Array(COLS).fill(0));
+
+  const prevLevel = level;
+  score += destroyed * BOMB_BLOCK_SCORE * level;
+  lines += 1;
+  level = Math.floor(lines / 10) + 1;
+  dropInterval = Math.max(100, 1000 - (level - 1) * 90);
+
+  flashes.push({ row, t: 0 });
+  spawnLineParticles(row, COLORS[colors[Math.floor(COLS / 2)]] || cssVar('--energy-ready', '#4dd0e1'));
+  energyFx = { t: 0 };
+  shakeScreen(SHAKE_ZAP.mag, SHAKE_ZAP.dur);
+  SFX.zap();
+
+  if (level > prevLevel) {
+    banner = { text: `NIVEL ${level}`, t: 0, color: cssVar('--value-color', '#7aa2f7') };
+    SFX.levelUp();
+  } else if (!banner) {
+    // el slot de banner es único: no pisar un "¡TETRIS!"/"NIVEL N" recién puesto por clearLines()
+    banner = { text: '¡ZAP!', t: 0, color: cssVar('--energy-ready', '#4dd0e1') };
+  }
+
+  updateHUD();
+  checkChallengeWin();
 }
 
 function collapseColumn(c) {
@@ -554,6 +633,13 @@ function updateHUD() {
   comboEl.textContent = 'x' + comboMultiplier();
   comboSection.classList.toggle('combo-active', combo >= 2);
   comboSection.classList.toggle('combo-hot', combo >= 5);
+
+  const pct = Math.round((energy / ENERGY_MAX) * 100);
+  if (pct !== lastEnergyPct) {
+    lastEnergyPct = pct;
+    energyFillEl.style.width = pct + '%';
+  }
+  energySection.classList.toggle('energy-ready', energyReady);
 }
 
 function formatClock(ms) {
@@ -708,6 +794,20 @@ function draw() {
     ctx.fillRect(p.x, p.y, p.size, p.size);
   });
   ctx.globalAlpha = 1;
+
+  // barrido de la habilidad de energía sobre la fila inferior
+  if (energyFx) {
+    const t = Math.min(energyFx.t / ENERGY_FX_DURATION, 1);
+    const y = (ROWS - 1) * BLOCK;
+    const color = cssVar('--energy-ready', '#4dd0e1');
+    ctx.save();
+    ctx.globalAlpha = (1 - t) * 0.9;
+    ctx.fillStyle = color;
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 20;
+    ctx.fillRect(0, y + (BLOCK / 2) * t, COLS * BLOCK * (1 - t * 0.15), BLOCK - BLOCK * t);
+    ctx.restore();
+  }
 
   // animación de explosión de bomba
   if (blast) {
@@ -904,6 +1004,10 @@ function init() {
   animClock = 0;
   combo = 0;
   comboFx = null;
+  energy = 0;
+  energyReady = false;
+  energyFx = null;
+  lastEnergyPct = -1; // -1 fuerza la primera escritura del ancho en updateHUD()
   particles = [];
   flashes = [];
   banner = null;
