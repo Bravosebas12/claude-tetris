@@ -181,6 +181,19 @@ Algunos parámetros fáciles de tunear en `game.js`:
 
 ---
 
+## Triage automático de issues con Claude
+
+Al abrir o editar una issue, el workflow [`claude-issue-triage.yml`](.github/workflows/claude-issue-triage.yml) analiza el código y:
+
+- Asigna labels apropiados (tipo, `area:*`, `priority:*`, `complexity:*`).
+- Publica un diagnóstico estructurado (resumen, archivos/funciones implicadas, causa probable, enfoque de solución y criterios de aceptación).
+
+Ese diagnóstico sirve de base para pedir la implementación mencionando `@claude` en la misma issue (atendido por [`claude.yml`](.github/workflows/claude.yml)).
+
+Los labels `area:*`/`priority:*`/`complexity:*` se crean una única vez ejecutando manualmente el workflow [`claude-labels-bootstrap.yml`](.github/workflows/claude-labels-bootstrap.yml) (pestaña *Actions* → *Bootstrap Triage Labels* → *Run workflow*).
+
+---
+
 ## Licencia
 
 Proyecto de uso libre con fines educativos y de práctica.
