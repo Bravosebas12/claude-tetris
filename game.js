@@ -563,6 +563,11 @@ function promptForName() {
   showOverlay({ title: 'TETRIS', scoreText: '', showNameForm: true, showRanking: false, showRestart: false });
   nameInput.focus();
   nameInput.select();
+  // El navegador auto-scrollea para mostrar el input enfocado, y ese
+  // desplazamiento se queda pegado incluso después de empezar a jugar
+  // (dejando la parte de arriba del tablero fuera de pantalla). Se vuelve a
+  // dejar la página arriba del todo.
+  window.scrollTo(0, 0);
 }
 
 function confirmName(e) {
@@ -621,12 +626,20 @@ function init() {
   spawn();
   updateHUD();
   overlay.classList.add('hidden');
+  window.scrollTo(0, 0);
   cancelAnimationFrame(animId);
   animId = requestAnimationFrame(loop);
 }
 
+// Estas teclas hacen scroll de la página por defecto (flechas y espacio) —
+// se bloquea ese comportamiento del navegador sin importar el estado del
+// juego (también en pausa/game over), para que el tablero nunca se corra de
+// la pantalla mientras se juega.
+const SCROLL_KEYS = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Space'];
+
 document.addEventListener('keydown', e => {
   if (awaitingName) return;
+  if (SCROLL_KEYS.includes(e.code)) e.preventDefault();
   if (e.code === 'KeyP') { togglePause(); return; }
   if (paused || gameOver) return;
   switch (e.code) {
@@ -646,7 +659,6 @@ document.addEventListener('keydown', e => {
       tryRotate();
       break;
     case 'Space':
-      e.preventDefault();
       hardDrop();
       break;
     case 'KeyC':
