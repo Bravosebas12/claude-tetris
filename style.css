@@ -78,7 +78,7 @@ body {
 .wrapper {
   position: relative;
   width: 100%;
-  max-width: 640px;
+  max-width: 720px;
 }
 
 #theme-toggle {
@@ -180,12 +180,31 @@ body {
 }
 
 /* ---- Panel lateral ---- */
+/* SCORE/LINES/LEVEL y HOLD/NEXT van en filas compactas (en vez de una columna
+   larga) para que CONTROLS quede visible junto al tablero sin tener que
+   scrollear — sigue siendo la misma columna a la derecha del juego, solo más
+   baja en total. */
 .panel {
-  width: clamp(150px, 26vw, 220px);
+  width: clamp(210px, 32vw, 280px);
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
   padding-top: 4px;
+}
+
+.stats-row,
+.pieces-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.stats-row .panel-section,
+.pieces-row .panel-section {
+  flex: 1 1 0;
+  min-width: 0;
+  align-items: center;
+  text-align: center;
 }
 
 .panel-section {
@@ -224,7 +243,8 @@ body {
 #next-canvas,
 #hold-canvas {
   display: block;
-  width: min(30vw, 130px);
+  width: 100%;
+  max-width: 110px;
   height: auto;
   aspect-ratio: 1 / 1;
   border-radius: var(--radius-sm);
@@ -411,27 +431,35 @@ kbd {
 
 /* ---- Responsivo: pantallas angostas ---- */
 @media (max-width: 560px) {
+  .game-title {
+    margin-bottom: 8px;
+  }
+
   #board {
-    height: min(56vh, 184vw, 600px);
+    height: min(40vh, 184vw, 600px);
   }
 
   .game-container {
     flex-direction: column;
     align-items: center;
+    gap: 10px;
   }
 
   .panel {
     width: min(94vw, 420px);
-    flex-direction: row;
-    flex-wrap: wrap;
-    justify-content: center;
+    gap: 6px;
   }
 
   .panel-section {
-    flex: 1 1 120px;
+    padding: 8px 12px;
   }
 
-  .panel-section.controls {
-    flex-basis: 100%;
+  #next-canvas,
+  #hold-canvas {
+    max-width: 72px;
+  }
+
+  .controls ul {
+    gap: 4px;
   }
 }
