@@ -189,8 +189,9 @@ kbd {
   border-radius: 4px;
 }
 
-.overlay.hidden {
-  display: none;
+/* !important: esta utilidad debe ganarle a reglas por id como #name-form. */
+.hidden {
+  display: none !important;
 }
 
 .overlay-box {
@@ -214,7 +215,7 @@ kbd {
   color: var(--overlay-score-color);
 }
 
-#restart-btn {
+.btn-primary {
   margin-top: 8px;
   background: var(--restart-bg);
   color: var(--restart-text);
@@ -228,6 +229,83 @@ kbd {
   transition: background 0.15s;
 }
 
-#restart-btn:hover {
+.btn-primary:hover {
   background: var(--restart-hover);
+}
+
+/* ---- Formulario de nombre ---- */
+#name-form {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+#player-name-input {
+  width: 180px;
+  background: var(--board-bg);
+  border: 1px solid var(--board-border);
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 14px;
+  color: var(--text-color);
+  text-align: center;
+}
+
+#player-name-input:focus {
+  outline: none;
+  border-color: var(--title-color);
+}
+
+/* ---- Ranking ---- */
+#ranking-list {
+  width: 100%;
+  max-width: 220px;
+}
+
+.ranking-title {
+  font-size: 12px;
+  letter-spacing: 1px;
+  color: var(--label-color);
+  margin-bottom: 8px;
+}
+
+.ranking {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.ranking li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--controls-text);
+}
+
+.ranking li.current-player {
+  color: var(--value-color);
+  font-weight: 700;
+}
+
+.ranking .rank-pos {
+  width: 18px;
+  text-align: right;
+  opacity: 0.7;
+}
+
+.ranking .rank-name {
+  flex: 1;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ranking .rank-score {
+  font-family: 'Courier New', Courier, monospace;
 }

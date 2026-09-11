@@ -27,6 +27,9 @@ const PIECES = [
 ];
 
 const LINE_SCORES = [0, 100, 300, 500, 800];
+const RANKING_KEY = 'tetris-ranking';
+const LAST_PLAYER_KEY = 'tetris-last-player';
+const RANKING_MAX = 10;
 
 const canvas = document.getElementById('board');
 const ctx = canvas.getContext('2d');
@@ -40,9 +43,13 @@ const overlayTitle = document.getElementById('overlay-title');
 const overlayScore = document.getElementById('overlay-score');
 const restartBtn = document.getElementById('restart-btn');
 const themeToggleBtn = document.getElementById('theme-toggle');
+const nameForm = document.getElementById('name-form');
+const nameInput = document.getElementById('player-name-input');
+const rankingList = document.getElementById('ranking-list');
 
 let board, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId;
 let gridColor, blockHighlight;
+let playerName, playerKey, awaitingName;
 
 function createBoard() {
   return Array.from({ length: ROWS }, () => new Array(COLS).fill(0));
@@ -158,6 +165,88 @@ function updateHUD() {
   levelEl.textContent = level;
 }
 
+// Normaliza el nombre a "Palabra Palabra": "ARIANA", "ariana" y "Ariana" quedan
+// todos como "Ariana". `playerKey` (su versión en minúsculas) es la identidad real
+// del jugador; `playerName`/lo guardado en el ranking es solo para mostrar.
+function toDisplayName(raw) {
+  return raw
+    .trim()
+    .replace(/\s+/g, ' ')
+    .split(' ')
+    .filter(Boolean)
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ');
+}
+
+function loadRanking() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(RANKING_KEY));
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveRanking(ranking) {
+  try {
+    localStorage.setItem(RANKING_KEY, JSON.stringify(ranking));
+  } catch {
+    // localStorage no disponible (privado/bloqueado): el ranking no persiste, pero el juego sigue.
+  }
+}
+
+// Guarda la mejor puntuación de `key` (identidad case-insensitive) y devuelve el
+// ranking completo ordenado de mayor a menor.
+function recordScore(key, name, finalScore) {
+  const ranking = loadRanking();
+  const existing = ranking.find(entry => entry.key === key);
+  if (existing) {
+    existing.name = name;
+    existing.score = Math.max(existing.score, finalScore);
+  } else {
+    ranking.push({ key, name, score: finalScore });
+  }
+  ranking.sort((a, b) => b.score - a.score);
+  saveRanking(ranking);
+  return ranking;
+}
+
+// Los nombres son texto libre del usuario: se insertan como texto (textContent),
+// nunca como innerHTML, para no abrir la puerta a HTML/script injection.
+function renderRanking(ranking) {
+  rankingList.innerHTML = '';
+  const top = ranking.slice(0, RANKING_MAX);
+  if (!top.length) return;
+
+  const title = document.createElement('p');
+  title.className = 'ranking-title';
+  title.textContent = '🏆 Ranking';
+  rankingList.appendChild(title);
+
+  const ol = document.createElement('ol');
+  ol.className = 'ranking';
+  top.forEach((entry, i) => {
+    const li = document.createElement('li');
+    if (entry.key === playerKey) li.classList.add('current-player');
+
+    const pos = document.createElement('span');
+    pos.className = 'rank-pos';
+    pos.textContent = `${i + 1}.`;
+
+    const name = document.createElement('span');
+    name.className = 'rank-name';
+    name.textContent = entry.name;
+
+    const sc = document.createElement('span');
+    sc.className = 'rank-score';
+    sc.textContent = entry.score.toLocaleString();
+
+    li.append(pos, name, sc);
+    ol.appendChild(li);
+  });
+  rankingList.appendChild(ol);
+}
+
 function drawBlock(context, x, y, colorIndex, size, alpha) {
   if (!colorIndex) return;
   const color = COLORS[colorIndex];
@@ -239,12 +328,29 @@ function toggleTheme() {
   applyTheme(theme);
 }
 
+// Estado único del overlay: muestra/oculta cada bloque (form de nombre, ranking,
+// botón reiniciar) según para qué se está usando (nombre / pausa / game over).
+function showOverlay({ title, scoreText, showNameForm, showRanking, showRestart }) {
+  overlayTitle.textContent = title;
+  overlayScore.textContent = scoreText || '';
+  nameForm.classList.toggle('hidden', !showNameForm);
+  rankingList.classList.toggle('hidden', !showRanking);
+  restartBtn.classList.toggle('hidden', !showRestart);
+  overlay.classList.remove('hidden');
+}
+
 function endGame() {
   gameOver = true;
   cancelAnimationFrame(animId);
-  overlayTitle.textContent = 'GAME OVER';
-  overlayScore.textContent = `Puntuación: ${score.toLocaleString()}`;
-  overlay.classList.remove('hidden');
+  const ranking = recordScore(playerKey, playerName, score);
+  renderRanking(ranking);
+  showOverlay({
+    title: 'GAME OVER',
+    scoreText: `Puntuación: ${score.toLocaleString()}`,
+    showNameForm: false,
+    showRanking: true,
+    showRestart: true,
+  });
 }
 
 function togglePause() {
@@ -255,10 +361,28 @@ function togglePause() {
     loop(lastTime);
   } else {
     cancelAnimationFrame(animId);
-    overlayTitle.textContent = 'PAUSA';
-    overlayScore.textContent = '';
-    overlay.classList.remove('hidden');
+    showOverlay({ title: 'PAUSA', scoreText: '', showNameForm: false, showRanking: false, showRestart: true });
   }
+}
+
+function promptForName() {
+  awaitingName = true;
+  nameInput.value = localStorage.getItem(LAST_PLAYER_KEY) || '';
+  showOverlay({ title: 'TETRIS', scoreText: '', showNameForm: true, showRanking: false, showRestart: false });
+  nameInput.focus();
+  nameInput.select();
+}
+
+function confirmName(e) {
+  e.preventDefault();
+  const displayName = toDisplayName(nameInput.value) || 'Jugador';
+  playerName = displayName;
+  playerKey = displayName.toLowerCase();
+  localStorage.setItem(LAST_PLAYER_KEY, displayName);
+  awaitingName = false;
+  nameForm.classList.add('hidden');
+  overlay.classList.add('hidden');
+  init();
 }
 
 function loop(ts) {
@@ -298,6 +422,7 @@ function init() {
 }
 
 document.addEventListener('keydown', e => {
+  if (awaitingName) return;
   if (e.code === 'KeyP') { togglePause(); return; }
   if (paused || gameOver) return;
   switch (e.code) {
@@ -322,8 +447,9 @@ document.addEventListener('keydown', e => {
   updateHUD();
 });
 
-restartBtn.addEventListener('click', init);
+restartBtn.addEventListener('click', promptForName);
+nameForm.addEventListener('submit', confirmName);
 themeToggleBtn.addEventListener('click', toggleTheme);
 
 applyTheme(localStorage.getItem('theme') === 'light' ? 'light' : 'dark');
-init();
+promptForName();
