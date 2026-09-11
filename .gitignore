@@ -27,3 +27,4 @@ npm-debug.log*
 .claude/*.local.json
 CLAUDE.local.md
 .mcp.local.json
+.claude/skills/clima/
