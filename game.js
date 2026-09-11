@@ -39,8 +39,10 @@ const overlay = document.getElementById('overlay');
 const overlayTitle = document.getElementById('overlay-title');
 const overlayScore = document.getElementById('overlay-score');
 const restartBtn = document.getElementById('restart-btn');
+const themeToggleBtn = document.getElementById('theme-toggle');
 
 let board, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId;
+let gridColor, blockHighlight;
 
 function createBoard() {
   return Array.from({ length: ROWS }, () => new Array(COLS).fill(0));
@@ -163,13 +165,13 @@ function drawBlock(context, x, y, colorIndex, size, alpha) {
   context.fillStyle = color;
   context.fillRect(x * size + 1, y * size + 1, size - 2, size - 2);
   // highlight
-  context.fillStyle = 'rgba(255,255,255,0.12)';
+  context.fillStyle = blockHighlight;
   context.fillRect(x * size + 1, y * size + 1, size - 2, 4);
   context.globalAlpha = 1;
 }
 
 function drawGrid() {
-  ctx.strokeStyle = '#22222e';
+  ctx.strokeStyle = gridColor;
   ctx.lineWidth = 0.5;
   for (let c = 1; c < COLS; c++) {
     ctx.beginPath();
@@ -216,6 +218,25 @@ function drawNext() {
   for (let r = 0; r < shape.length; r++)
     for (let c = 0; c < shape[r].length; c++)
       drawBlock(nextCtx, offX + c, offY + r, shape[r][c], NB);
+}
+
+function updateThemeColors() {
+  const styles = getComputedStyle(document.body);
+  gridColor = styles.getPropertyValue('--grid-line').trim();
+  blockHighlight = styles.getPropertyValue('--block-highlight').trim();
+}
+
+function applyTheme(theme) {
+  document.body.classList.toggle('light-theme', theme === 'light');
+  themeToggleBtn.textContent = theme === 'light' ? '☀️' : '🌙';
+  themeToggleBtn.setAttribute('aria-label', theme === 'light' ? 'Cambiar a modo oscuro' : 'Cambiar a modo claro');
+  updateThemeColors();
+}
+
+function toggleTheme() {
+  const theme = document.body.classList.contains('light-theme') ? 'dark' : 'light';
+  localStorage.setItem('theme', theme);
+  applyTheme(theme);
 }
 
 function endGame() {
@@ -300,5 +321,7 @@ document.addEventListener('keydown', e => {
 });
 
 restartBtn.addEventListener('click', init);
+themeToggleBtn.addEventListener('click', toggleTheme);
 
+applyTheme(localStorage.getItem('theme') === 'light' ? 'light' : 'dark');
 init();
