@@ -8,6 +8,39 @@
 </head>
 <body>
   <div class="wrapper">
+    <button
+      id="mode-toggle"
+      class="mode-toggle"
+      type="button"
+      role="switch"
+      aria-checked="false"
+      aria-label="Cambiar a modo desafío"
+      title="Modo desafío: 40 líneas en 2 min (C)"
+    >
+      <span class="mode-toggle-icon">∞</span>
+    </button>
+    <button
+      id="sound-toggle"
+      class="sound-toggle"
+      type="button"
+      role="switch"
+      aria-checked="true"
+      aria-label="Silenciar sonido"
+      title="Sonido (M)"
+    >
+      <span class="sound-toggle-icon">🔊</span>
+    </button>
+    <button
+      id="theme-toggle"
+      class="theme-toggle"
+      type="button"
+      role="switch"
+      aria-checked="false"
+      aria-label="Cambiar a modo claro"
+    >
+      <span class="theme-toggle-icon">🌙</span>
+    </button>
+    <h1 class="game-title">TETRIS</h1>
     <div class="game-container">
       <canvas id="board" width="300" height="600"></canvas>
 
@@ -20,9 +53,26 @@
           <span class="label">LINES</span>
           <span class="value" id="lines">0</span>
         </div>
+        <div class="panel-section" id="timer-section">
+          <span class="label">TIME</span>
+          <span class="value" id="timer">2:00</span>
+        </div>
         <div class="panel-section">
           <span class="label">LEVEL</span>
           <span class="value" id="level">1</span>
+        </div>
+
+        <div class="panel-section" id="combo-section">
+          <span class="label">COMBO</span>
+          <span class="value" id="combo">x1</span>
+        </div>
+
+        <div class="panel-section" id="energy-section">
+          <span class="label">ENERGÍA</span>
+          <div class="energy-track">
+            <div class="energy-fill" id="energy-fill"></div>
+          </div>
+          <span class="energy-hint">Limpia la fila inferior</span>
         </div>
 
         <div class="panel-section">
@@ -38,6 +88,8 @@
             <li><kbd>↓</kbd> bajar</li>
             <li><kbd>Space</kbd> caída</li>
             <li><kbd>P</kbd> pausa</li>
+            <li><kbd>M</kbd> sonido</li>
+            <li><kbd>C</kbd> modo</li>
           </ul>
         </div>
       </aside>

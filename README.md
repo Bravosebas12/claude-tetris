@@ -41,7 +41,8 @@ Es una versión jugable del Tetris clásico con todas las mecánicas que esperar
 - **Vista previa** de la siguiente pieza.
 - **Sistema de puntuación** clásico de Tetris (100 / 300 / 500 / 800 multiplicado por nivel).
 - **Niveles** que aumentan cada 10 líneas y aceleran la caída.
-- **Pausa** y **Game Over** con opción de reinicio.
+- **Modo desafío**: limpia 40 líneas en 2 minutos antes de que se acabe el tiempo. Se activa con el botón de modo del HUD o la tecla `C`; el modo clásico (infinito) sigue siendo el predeterminado.
+- **Pausa** y **Game Over** (o victoria/derrota del desafío) con opción de reinicio.
 
 ---
 
@@ -85,6 +86,8 @@ Después abre `http://localhost:8000` en el navegador.
 | `↓`       | Soft drop (bajar más rápido)      |
 | `Espacio` | Hard drop (caída instantánea)     |
 | `P`       | Pausar / reanudar                 |
+| `M`       | Silenciar / activar sonido        |
+| `C`       | Cambiar entre modo clásico y modo desafío |
 
 ---
 
@@ -137,6 +140,15 @@ init()
 ```
 
 Cuando una pieza recién generada ya colisiona al aparecer (`spawn`), se dispara `endGame()` y se muestra el overlay de **Game Over**.
+
+### Modo desafío
+
+Junto al toggle de tema y sonido hay un tercer botón (o la tecla `C`) para alternar entre **modo clásico** (infinito, por defecto) y **modo desafío**: limpiar 40 líneas en 2 minutos, con las mismas reglas del clásico (niveles, velocidad, bomba, tuerca, combo y puntuación).
+
+- El panel muestra una cuenta atrás (`TIME`) y el contador de líneas como progreso (`N / 40`); el reloj se detiene automáticamente al pausar.
+- Cerca del final, `TIME` cambia de color como aviso y luego parpadea en rojo.
+- Al llegar a 40 líneas aparece un overlay de victoria con el tiempo empleado; si el reloj llega a 0 antes, aparece un overlay de derrota con las líneas conseguidas. Ambos tienen botón de reinicio.
+- El modo elegido se recuerda entre sesiones (`localStorage`).
 
 ---
 
