@@ -133,6 +133,12 @@ body {
   justify-content: center;
 }
 
+.board-wrap {
+  position: relative;
+  display: inline-block;
+  line-height: 0;
+}
+
 #board {
   display: block;
   height: min(78vh, 184vw, 720px);
@@ -143,6 +149,34 @@ body {
   border-radius: var(--radius-lg);
   box-shadow: 0 0 40px var(--board-shadow);
   image-rendering: pixelated;
+}
+
+/* ---- Toast de combos/T-spin/B2B/Perfect Clear ---- */
+#toast {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--restart-bg);
+  color: var(--restart-text);
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: clamp(13px, 2.2vw, 16px);
+  padding: 8px 18px;
+  border-radius: var(--radius-pill);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  white-space: nowrap;
+  pointer-events: none;
+  animation: toast-pop 1.1s ease forwards;
+  z-index: 5;
+}
+
+@keyframes toast-pop {
+  0% { opacity: 0; transform: translateX(-50%) translateY(-8px) scale(0.8); }
+  15% { opacity: 1; transform: translateX(-50%) translateY(0) scale(1.05); }
+  25% { transform: translateX(-50%) translateY(0) scale(1); }
+  80% { opacity: 1; }
+  100% { opacity: 0; transform: translateX(-50%) translateY(-6px) scale(0.95); }
 }
 
 /* ---- Panel lateral ---- */
@@ -162,6 +196,12 @@ body {
   border: 1px solid var(--board-border);
   border-radius: var(--radius-md);
   padding: 10px 14px;
+  transition: opacity 0.15s;
+}
+
+/* Hold bloqueado hasta que la pieza actual se asiente (ver holdPiece/lockPiece). */
+.panel-section.locked {
+  opacity: 0.4;
 }
 
 .label {
@@ -181,7 +221,8 @@ body {
   letter-spacing: 1px;
 }
 
-#next-canvas {
+#next-canvas,
+#hold-canvas {
   display: block;
   width: min(30vw, 130px);
   height: auto;

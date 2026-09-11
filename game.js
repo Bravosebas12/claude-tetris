@@ -13,6 +13,11 @@ const COLORS = [
   '#e57373', // Z - red
   '#7986cb', // J - indigo
   '#90caf9', // L - pale blue
+  '#ffb74d', // + (plus pentominó) - naranja
+  '#4db6ac', // U (pentominó) - verde azulado
+  '#f06292', // Y (pentominó) - rosa
+  '#fff176', // 1x1 (recompensa) - dorado
+  '#90a4ae', // 3x3 hueca (reto) - gris azulado
 ];
 
 const PIECES = [
@@ -24,12 +29,30 @@ const PIECES = [
   [[5,5,0],[0,5,5],[0,0,0]],                  // Z
   [[6,0,0],[6,6,6],[0,0,0]],                  // J
   [[0,0,7],[7,7,7],[0,0,0]],                  // L
+  [[0,8,0],[8,8,8],[0,8,0]],                  // + (plus pentominó)
+  [[9,0,9],[9,9,9],[0,0,0]],                  // U pentominó (2x3 real, enmarcado en 3x3)
+  [[0,10,0,0],[10,10,0,0],[0,10,0,0],[0,10,0,0]], // Y pentominó (4x2 real, enmarcado en 4x4 como la I)
+  [[11]],                                     // 1x1 (recompensa tras Tetris)
+  [[12,12,12],[12,0,12],[12,12,12]],          // 3x3 hueca (pieza reto)
 ];
 
 const LINE_SCORES = [0, 100, 300, 500, 800];
 const RANKING_KEY = 'tetris-ranking';
 const LAST_PLAYER_KEY = 'tetris-last-player';
 const RANKING_MAX = 10;
+
+// Piezas especiales: tipos 8-10 y 12 aparecen al azar (nunca el 11, que es una
+// recompensa exclusiva tras un Tetris — ver clearLines/pendingRewardPiece).
+const TYPE_T = 3;
+const TYPE_SINGLE = 11;
+const SPECIAL_TYPES = [8, 9, 10, 12];
+const PENTOMINO_MIN_LEVEL = 2;
+const PENTOMINO_CHANCE = 0.12;
+
+const COMBO_BASE = 50;
+const TSPIN_BASE = 400;
+const B2B_TETRIS_MULT = 0.5;
+const PERFECT_CLEAR_BASE = 3000;
 
 const canvas = document.getElementById('board');
 const ctx = canvas.getContext('2d');
@@ -46,19 +69,43 @@ const themeToggleBtn = document.getElementById('theme-toggle');
 const nameForm = document.getElementById('name-form');
 const nameInput = document.getElementById('player-name-input');
 const rankingList = document.getElementById('ranking-list');
+const holdCanvas = document.getElementById('hold-canvas');
+const holdCtx = holdCanvas.getContext('2d');
+const holdSection = document.getElementById('hold-section');
+const toastEl = document.getElementById('toast');
 
 let board, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId;
 let gridColor, blockHighlight;
 let playerName, playerKey, awaitingName;
+let heldType, holdLocked;
+let combo, lastClearWasTetris, pendingRewardPiece, lastActionWasRotate;
+let toastTimer = null;
+let audioCtx = null;
 
 function createBoard() {
   return Array.from({ length: ROWS }, () => new Array(COLS).fill(0));
 }
 
-function randomPiece() {
-  const type = Math.floor(Math.random() * 7) + 1;
+function pieceFromType(type) {
   const shape = PIECES[type].map(row => [...row]);
   return { type, shape, x: Math.floor(COLS / 2) - Math.floor(shape[0].length / 2), y: 0 };
+}
+
+// Elige qué tipo sale a continuación: recompensa pendiente (tras Tetris) > pieza
+// especial ocasional (a partir de PENTOMINO_MIN_LEVEL) > pieza estándar 1-7.
+function pickPieceType() {
+  if (pendingRewardPiece) {
+    pendingRewardPiece = false;
+    return TYPE_SINGLE;
+  }
+  if (level >= PENTOMINO_MIN_LEVEL && Math.random() < PENTOMINO_CHANCE) {
+    return SPECIAL_TYPES[Math.floor(Math.random() * SPECIAL_TYPES.length)];
+  }
+  return Math.floor(Math.random() * 7) + 1;
+}
+
+function randomPiece() {
+  return pieceFromType(pickPieceType());
 }
 
 function collide(shape, ox, oy) {
@@ -90,9 +137,31 @@ function tryRotate() {
     if (!collide(rotated, current.x + kick, current.y)) {
       current.shape = rotated;
       current.x += kick;
+      lastActionWasRotate = true;
       return;
     }
   }
+}
+
+// Heurístico simplificado de T-spin (no SRS real, igual de "naive" que el resto
+// de la rotación en este proyecto): cuenta como T-spin si la última acción fue
+// una rotación exitosa de una pieza T y al menos 3 de las 4 esquinas de su caja
+// 3x3 están ocupadas (pared, piso o bloque). Se llama antes de merge() para que
+// las esquinas reflejen el tablero tal como estaba cuando la pieza encajó.
+function detectTSpin() {
+  if (current.type !== TYPE_T || !lastActionWasRotate) return false;
+  const corners = [
+    [current.x, current.y],
+    [current.x + 2, current.y],
+    [current.x, current.y + 2],
+    [current.x + 2, current.y + 2],
+  ];
+  let occupied = 0;
+  for (const [cx, cy] of corners) {
+    if (cx < 0 || cx >= COLS || cy >= ROWS) { occupied++; continue; }
+    if (cy >= 0 && board[cy][cx]) occupied++;
+  }
+  return occupied >= 3;
 }
 
 function merge() {
@@ -102,7 +171,7 @@ function merge() {
         board[current.y + r][current.x + c] = current.shape[r][c];
 }
 
-function clearLines() {
+function clearLines(tSpin) {
   let cleared = 0;
   for (let r = ROWS - 1; r >= 0; r--) {
     if (board[r].every(v => v !== 0)) {
@@ -112,12 +181,50 @@ function clearLines() {
       r++;
     }
   }
-  if (cleared) {
-    lines += cleared;
-    score += (LINE_SCORES[cleared] || 0) * level;
-    level = Math.floor(lines / 10) + 1;
-    dropInterval = Math.max(100, 1000 - (level - 1) * 90);
-    updateHUD();
+
+  if (!cleared) {
+    combo = 0;
+    return;
+  }
+
+  lines += cleared;
+  level = Math.floor(lines / 10) + 1;
+  dropInterval = Math.max(100, 1000 - (level - 1) * 90);
+
+  let gained = (LINE_SCORES[cleared] || 0) * level;
+  const messages = [];
+
+  combo++;
+  if (combo > 1) {
+    gained += COMBO_BASE * (combo - 1) * level;
+    messages.push(`COMBO x${combo}!`);
+  }
+
+  if (tSpin) {
+    gained += TSPIN_BASE * cleared * level;
+    messages.push('T-SPIN!');
+  }
+
+  const isTetris = cleared === 4;
+  if (isTetris && lastClearWasTetris) {
+    gained += Math.floor((LINE_SCORES[4] || 0) * level * B2B_TETRIS_MULT);
+    messages.push('B2B TETRIS!');
+  }
+  lastClearWasTetris = isTetris;
+  if (isTetris) pendingRewardPiece = true;
+
+  const isPerfectClear = board.every(row => row.every(cell => cell === 0));
+  if (isPerfectClear) {
+    gained += PERFECT_CLEAR_BASE * level;
+    messages.push('PERFECT CLEAR!');
+  }
+
+  score += gained;
+  updateHUD();
+
+  if (messages.length) {
+    showToast(messages.join(' '));
+    playComboSound(combo, tSpin, isPerfectClear);
   }
 }
 
@@ -145,8 +252,11 @@ function softDrop() {
 }
 
 function lockPiece() {
+  const tSpin = detectTSpin();
   merge();
-  clearLines();
+  clearLines(tSpin);
+  holdLocked = false;
+  holdSection.classList.remove('locked');
   spawn();
 }
 
@@ -157,6 +267,26 @@ function spawn() {
     endGame();
   }
   drawNext();
+}
+
+// Reserva la pieza actual (tecla C/Shift). Una sola vez por pieza: se
+// desbloquea recién cuando la pieza en juego se asienta (ver lockPiece).
+function holdPiece() {
+  if (holdLocked) return;
+  holdLocked = true;
+  holdSection.classList.add('locked');
+
+  const outgoingType = current.type;
+  if (heldType === null) {
+    heldType = outgoingType;
+    spawn();
+  } else {
+    const incomingType = heldType;
+    heldType = outgoingType;
+    current = pieceFromType(incomingType);
+    if (collide(current.shape, current.x, current.y)) endGame();
+  }
+  drawHold();
 }
 
 function updateHUD() {
@@ -247,6 +377,59 @@ function renderRanking(ranking) {
   rankingList.appendChild(ol);
 }
 
+// Toast breve ("COMBO x3!", "T-SPIN!", ...) sobre el tablero. Reinicia su propia
+// animación CSS si se dispara de nuevo antes de que termine la anterior.
+function showToast(text) {
+  toastEl.textContent = text;
+  toastEl.classList.remove('hidden');
+  toastEl.style.animation = 'none';
+  void toastEl.offsetWidth; // fuerza reflow para poder reiniciar la animación
+  toastEl.style.animation = '';
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toastEl.classList.add('hidden'), 1200);
+}
+
+// Efectos de sonido sintetizados con Web Audio (no hay pipeline de assets en
+// este proyecto — ver CLAUDE.md). `getAudioCtx` es un singleton perezoso.
+function getAudioCtx() {
+  if (!audioCtx) {
+    try {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    } catch {
+      return null;
+    }
+  }
+  return audioCtx;
+}
+
+function playTone(freq, duration, delay = 0, type = 'sine') {
+  const ctxA = getAudioCtx();
+  if (!ctxA) return;
+  const osc = ctxA.createOscillator();
+  const gain = ctxA.createGain();
+  osc.type = type;
+  osc.frequency.value = freq;
+  gain.gain.setValueAtTime(0.15, ctxA.currentTime + delay);
+  gain.gain.exponentialRampToValueAtTime(0.001, ctxA.currentTime + delay + duration);
+  osc.connect(gain);
+  gain.connect(ctxA.destination);
+  osc.start(ctxA.currentTime + delay);
+  osc.stop(ctxA.currentTime + delay + duration);
+}
+
+function playComboSound(comboLevel, tSpin, perfectClear) {
+  if (perfectClear) {
+    [523, 659, 784, 1047].forEach((f, i) => playTone(f, 0.25, i * 0.09, 'triangle'));
+    return;
+  }
+  if (tSpin) {
+    playTone(392, 0.12, 0, 'square');
+    playTone(587, 0.18, 0.1, 'square');
+    return;
+  }
+  playTone(440 + Math.min(comboLevel, 6) * 60, 0.15, 0, 'sine');
+}
+
 function drawBlock(context, x, y, colorIndex, size, alpha) {
   if (!colorIndex) return;
   const color = COLORS[colorIndex];
@@ -298,15 +481,24 @@ function draw() {
       drawBlock(ctx, current.x + c, current.y + r, current.shape[r][c], BLOCK);
 }
 
-function drawNext() {
+// Centra `shape` en una caja fija de 4x4 a `size` px — usado para NEXT y HOLD.
+function drawPiecePreview(context, canvas, shape) {
+  context.clearRect(0, 0, canvas.width, canvas.height);
+  if (!shape) return;
   const NB = 30;
-  nextCtx.clearRect(0, 0, nextCanvas.width, nextCanvas.height);
-  const shape = next.shape;
   const offX = Math.floor((4 - shape[0].length) / 2);
   const offY = Math.floor((4 - shape.length) / 2);
   for (let r = 0; r < shape.length; r++)
     for (let c = 0; c < shape[r].length; c++)
-      drawBlock(nextCtx, offX + c, offY + r, shape[r][c], NB);
+      drawBlock(context, offX + c, offY + r, shape[r][c], NB);
+}
+
+function drawNext() {
+  drawPiecePreview(nextCtx, nextCanvas, next.shape);
+}
+
+function drawHold() {
+  drawPiecePreview(holdCtx, holdCanvas, heldType === null ? null : PIECES[heldType]);
 }
 
 function updateThemeColors() {
@@ -382,6 +574,10 @@ function confirmName(e) {
   awaitingName = false;
   nameForm.classList.add('hidden');
   overlay.classList.add('hidden');
+  // Gesto real del usuario: aprovechamos para desbloquear el audio (los
+  // navegadores suspenden AudioContext hasta la primera interacción).
+  const ctxA = getAudioCtx();
+  if (ctxA && ctxA.state === 'suspended') ctxA.resume();
   init();
 }
 
@@ -413,6 +609,14 @@ function init() {
   dropInterval = 1000;
   dropAccum = 0;
   lastTime = performance.now();
+  heldType = null;
+  holdLocked = false;
+  holdSection.classList.remove('locked');
+  combo = 0;
+  lastClearWasTetris = false;
+  pendingRewardPiece = false;
+  lastActionWasRotate = false;
+  drawHold();
   next = randomPiece();
   spawn();
   updateHUD();
@@ -428,9 +632,11 @@ document.addEventListener('keydown', e => {
   switch (e.code) {
     case 'ArrowLeft':
       if (!collide(current.shape, current.x - 1, current.y)) current.x--;
+      lastActionWasRotate = false; // mover lateralmente invalida el T-spin
       break;
     case 'ArrowRight':
       if (!collide(current.shape, current.x + 1, current.y)) current.x++;
+      lastActionWasRotate = false;
       break;
     case 'ArrowDown':
       softDrop();
@@ -442,6 +648,11 @@ document.addEventListener('keydown', e => {
     case 'Space':
       e.preventDefault();
       hardDrop();
+      break;
+    case 'KeyC':
+    case 'ShiftLeft':
+    case 'ShiftRight':
+      holdPiece();
       break;
   }
   updateHUD();
