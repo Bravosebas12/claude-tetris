@@ -31,7 +31,6 @@ Control flow: `init()` builds state and starts `requestAnimationFrame(loop)`; `l
 
 ## Known quirks (pre-existing — don't mistake them for your change)
 
-- `endGame()` calls `cancelAnimationFrame` from inside the `loop` callback, so `loop` still schedules the next frame: the board keeps dropping behind the GAME OVER overlay. `gameOver` only gates the `keydown` handler.
 - `loop` resets `dropAccum = 0` instead of subtracting `dropInterval`, so drop timing drifts slightly under frame jitter.
 - Resuming from pause resets `lastTime = performance.now()` to avoid one huge `dt`.
 
