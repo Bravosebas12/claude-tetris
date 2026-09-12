@@ -89,6 +89,10 @@ jobs:
             Step 6 — Post a diagnostic comment (not a fix).
             Run:
               gh issue comment ${{ github.event.issue.number }} --body "<content>"
+            The comment body must be written in GitHub-flavored Markdown that
+            GitHub can render properly (headings, bullet lists, and inline
+            `code` spans for function/variable names as appropriate) — do not
+            post plain unformatted text.
             The comment body must be structured as:
               1. A one-line header stating this is an automated triage/diagnostic
                  note, not a fix.
