@@ -16,7 +16,10 @@
   <div class="wrapper">
     <h1 class="game-title">TETRIS</h1>
     <div class="game-container">
-      <canvas id="board" width="300" height="600"></canvas>
+      <div class="board-wrap">
+        <canvas id="board" width="300" height="600"></canvas>
+        <div id="powerup-banner" class="powerup-banner hidden"></div>
+      </div>
 
       <aside class="panel">
         <div class="panel-section">
@@ -54,6 +57,11 @@
             <li><kbd>Space</kbd> caída</li>
             <li><kbd>P</kbd> pausa</li>
           </ul>
+        </div>
+
+        <div class="panel-section">
+          <span class="label">POWERUPS</span>
+          <ul id="powerup-legend" class="powerup-legend"></ul>
         </div>
       </aside>
     </div>
