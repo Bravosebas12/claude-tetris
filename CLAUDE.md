@@ -22,8 +22,8 @@ Then visit `http://localhost:8000`.
 
 Everything lives in `game.js` as top-level state and functions (no modules, no classes) operating on a small set of shared globals: `board`, `current`, `next`, `score`, `lines`, `level`, `paused`, `gameOver`, `dropInterval`, `dropAccum`, `animId`.
 
-- **Board model**: `board` is a `ROWS × COLS` matrix; each cell is `0` (empty) or an index 1–7 into `COLORS`/`PIECES` identifying which tetromino occupies it.
-- **Pieces**: `PIECES` defines the 7 tetrominoes as square matrices. Rotation (`rotateCW`) is done by transposing + reversing rows — there's no separate rotation-state table, the shape matrix itself is rotated in place.
+- **Board model**: `board` is a `ROWS × COLS` matrix; each cell is `0` (empty) or an index 1–8 into `COLORS`/`PIECES` identifying which piece occupies it.
+- **Pieces**: `PIECES` defines the 7 standard tetrominoes plus a bonus 3×3 "nut" piece (type 8: a hollow ring, `[[8,8,8],[8,0,8],[8,8,8]]`) as square matrices. The nut's center cell is `0`, so `merge()` never overwrites whatever was under the hole — it can land straddling an existing gap, making that gap harder to clear. Rotation (`rotateCW`) is done by transposing + reversing rows — there's no separate rotation-state table, the shape matrix itself is rotated in place.
 - **Collision** (`collide`): checks a shape against board bounds and already-locked cells; it's the single primitive used by movement, rotation, and drop logic.
 - **Wall kicks** (`tryRotate`): after rotating, tries offsets `[0, -1, 1, -2, 2]` and takes the first that doesn't collide, else discards the rotation.
 - **Game loop** (`loop`, driven by `requestAnimationFrame`): accumulates elapsed time in `dropAccum` and advances the piece one row (or locks it via `lockPiece`) once `dropInterval` is exceeded.
