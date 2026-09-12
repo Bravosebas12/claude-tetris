@@ -5,6 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Tetris</title>
   <link rel="stylesheet" href="style.css" />
+  <script>
+    (function () {
+      var stored = localStorage.getItem('tetris-theme');
+      document.documentElement.setAttribute('data-theme', stored === 'light' ? 'light' : 'dark');
+    })();
+  </script>
 </head>
 <body>
   <div class="wrapper">
@@ -29,6 +35,14 @@
         <div class="panel-section">
           <span class="label">NEXT</span>
           <canvas id="next-canvas" width="120" height="120"></canvas>
+        </div>
+
+        <div class="panel-section theme-toggle-section">
+          <span class="label">MODO CLARO</span>
+          <label class="theme-switch">
+            <input type="checkbox" id="theme-toggle" aria-label="Cambiar entre modo oscuro y modo claro" />
+            <span class="slider"></span>
+          </label>
         </div>
 
         <div class="panel-section controls">
