@@ -48,6 +48,12 @@ jobs:
                - Alcance estimado del cambio (pequeño / mediano / grande).
                - Enfoque sugerido para la solución, SIN implementarla todavía.
 
+               El comentario debe estar escrito en formato Markdown válido y bien interpretable
+               por GitHub: usa encabezados (`##`), listas con `-`, **negritas** para resaltar
+               términos clave, y bloques de código con backticks (simples para nombres de
+               función/archivo, triples ```` ``` ```` para fragmentos de código) al citar
+               `collide()`, nombres de archivo u otros identificadores técnicos.
+
                Antes de comentar, revisa con `gh issue view ${{ github.event.issue.number }} --comments`
                si ya existe un comentario tuyo anterior que empiece con el marcador HTML
                `<!-- claude-diagnostico -->`. Si existe, actualízalo con
