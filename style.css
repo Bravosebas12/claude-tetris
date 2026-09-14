@@ -140,12 +140,18 @@ body {
   letter-spacing: 1px;
 }
 
-#next-canvas {
+#next-canvas,
+#hold-canvas {
   display: block;
   border: 1px solid var(--border);
   background: var(--panel-bg);
   border-radius: 4px;
-  transition: background 0.2s, border-color 0.2s;
+  transition: background 0.2s, border-color 0.2s, opacity 0.2s;
+}
+
+#hold-canvas.locked {
+  opacity: 0.4;
+  border-color: var(--overlay-title);
 }
 
 /* ---- Controles ---- */
