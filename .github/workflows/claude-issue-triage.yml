@@ -53,5 +53,8 @@ jobs:
             Keep the comment concise and technical; it's read by the developer who will implement
             the solution, not the issue reporter.
 
+            Format the comment in GitHub-flavored Markdown (e.g. backticks for code/file/function
+            names, bullet lists, bold for emphasis) so it renders cleanly on GitHub.
+
           claude_args: |
             --allowedTools "Bash(gh issue edit:*),Bash(gh issue view:*),Bash(gh issue comment:*),Bash(gh label list:*),Bash(gh label create:*)"
