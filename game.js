@@ -13,6 +13,7 @@ const COLORS = [
   '#e57373', // Z - red
   '#64b5f6', // J - pale blue
   '#ffb74d', // L - orange
+  '#f06292', // Ring - pink
 ];
 
 const PIECES = [
@@ -24,9 +25,12 @@ const PIECES = [
   [[5,5,0],[0,5,5],[0,0,0]],                  // Z
   [[6,0,0],[6,6,6],[0,0,0]],                  // J
   [[0,0,7],[7,7,7],[0,0,0]],                  // L
+  [[8,8,8],[8,0,8],[8,8,8]],                  // Ring (3x3, hollow center)
 ];
 
 const LINE_SCORES = [0, 100, 300, 500, 800];
+
+const PIECE_WEIGHTS = [1, 1, 1, 1, 1, 1, 1, 0.5]; // index 0 = type 1 ... index 7 = type 8 (Ring)
 
 const THEME_KEY = 'tetris-theme';
 const GRID_COLORS = { dark: '#22222e', light: '#d8dae8' };
@@ -70,8 +74,18 @@ function createBoard() {
   return Array.from({ length: ROWS }, () => new Array(COLS).fill(0));
 }
 
+function weightedPieceType() {
+  const total = PIECE_WEIGHTS.reduce((a, b) => a + b, 0);
+  let r = Math.random() * total;
+  for (let i = 0; i < PIECE_WEIGHTS.length; i++) {
+    if (r < PIECE_WEIGHTS[i]) return i + 1;
+    r -= PIECE_WEIGHTS[i];
+  }
+  return PIECE_WEIGHTS.length;
+}
+
 function randomPiece() {
-  const type = Math.floor(Math.random() * 7) + 1;
+  const type = weightedPieceType();
   const shape = PIECES[type].map(row => [...row]);
   return { type, shape, x: Math.floor(COLS / 2) - Math.floor(shape[0].length / 2), y: 0 };
 }
