@@ -37,6 +37,19 @@ const CLEAR_GRAVITY = 0.0004; // px/ms^2 aplicado a los fragmentos
 
 const GRID_COLORS = { dark: '#22222e', light: '#c4c4d4' };
 const THEME_STORAGE_KEY = 'tetris-theme';
+const SKIN_STORAGE_KEY = 'tetris-skin';
+
+const PASTEL_COLORS = [
+  null,
+  '#a8dfe6', // I - cyan
+  '#fce8a8', // O - yellow
+  '#d8b3e0', // T - purple
+  '#b8ddb8', // S - green
+  '#eab3b3', // Z - red
+  '#b8bfe0', // J - indigo
+  '#f0cba0', // L - orange
+  '#cfcfcf', // N - tuerca (nut)
+];
 
 const canvas = document.getElementById('board');
 const ctx = canvas.getContext('2d');
@@ -50,9 +63,11 @@ const overlayTitle = document.getElementById('overlay-title');
 const overlayScore = document.getElementById('overlay-score');
 const restartBtn = document.getElementById('restart-btn');
 const themeToggle = document.getElementById('theme-toggle');
+const skinSelect = document.getElementById('skin-select');
 
 let board, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId, theme;
 let clearing, clearingRows, particles, clearAnimElapsed, clearAnimTotal;
+let skin;
 
 function createBoard() {
   return Array.from({ length: ROWS }, () => new Array(COLS).fill(0));
@@ -242,20 +257,71 @@ function updateHUD() {
   levelEl.textContent = level;
 }
 
+function ditherAlpha(x, y, sx, sy) {
+  const levels = [0, 0.06, 0.12, 0.18, 0.24];
+  return levels[((x * 31 + sx * 7 + y * 17 + sy * 13) % 5 + 5) % 5];
+}
+
 function drawBlock(context, x, y, colorIndex, size, alpha) {
   if (!colorIndex) return;
-  const color = COLORS[colorIndex];
   context.globalAlpha = alpha ?? 1;
-  context.fillStyle = color;
-  context.fillRect(x * size + 1, y * size + 1, size - 2, size - 2);
-  // highlight
-  context.fillStyle = 'rgba(255,255,255,0.12)';
-  context.fillRect(x * size + 1, y * size + 1, size - 2, 4);
+
+  if (skin === 'neon') {
+    context.shadowBlur = 10;
+    context.shadowColor = COLORS[colorIndex];
+    context.fillStyle = COLORS[colorIndex];
+    context.fillRect(x * size + 1, y * size + 1, size - 2, size - 2);
+    context.fillStyle = 'rgba(255,255,255,0.12)';
+    context.fillRect(x * size + 1, y * size + 1, size - 2, 4);
+  } else if (skin === 'pastel') {
+    const color = PASTEL_COLORS[colorIndex];
+    context.fillStyle = color;
+    if (context.roundRect) {
+      context.beginPath();
+      context.roundRect(x * size + 1, y * size + 1, size - 2, size - 2, 4);
+      context.fill();
+    } else {
+      context.fillRect(x * size + 1, y * size + 1, size - 2, size - 2);
+    }
+    // soft highlight
+    context.fillStyle = 'rgba(255,255,255,0.18)';
+    context.fillRect(x * size + 1, y * size + 1, size - 2, 4);
+  } else if (skin === 'pixel') {
+    const color = COLORS[colorIndex];
+    context.fillStyle = color;
+    context.fillRect(x * size + 1, y * size + 1, size - 2, size - 2);
+    // highlight
+    context.fillStyle = 'rgba(255,255,255,0.12)';
+    context.fillRect(x * size + 1, y * size + 1, size - 2, 4);
+    // deterministic dithering overlay
+    const sub = 4;
+    const subSize = size / sub;
+    for (let sy = 0; sy < sub; sy++) {
+      for (let sx = 0; sx < sub; sx++) {
+        const a = ditherAlpha(x, y, sx, sy);
+        if (a <= 0) continue;
+        context.fillStyle = (sx + sy) % 2 === 0
+          ? `rgba(255,255,255,${a})`
+          : `rgba(0,0,0,${a})`;
+        context.fillRect(x * size + sx * subSize, y * size + sy * subSize, subSize, subSize);
+      }
+    }
+  } else {
+    // retro (default)
+    const color = COLORS[colorIndex];
+    context.fillStyle = color;
+    context.fillRect(x * size + 1, y * size + 1, size - 2, size - 2);
+    // highlight
+    context.fillStyle = 'rgba(255,255,255,0.12)';
+    context.fillRect(x * size + 1, y * size + 1, size - 2, 4);
+  }
+
+  context.shadowBlur = 0;
   context.globalAlpha = 1;
 }
 
 function drawGrid() {
-  ctx.strokeStyle = GRID_COLORS[theme];
+  ctx.strokeStyle = skin === 'neon' ? '#3a3a55' : GRID_COLORS[theme];
   ctx.lineWidth = 0.5;
   for (let c = 1; c < COLS; c++) {
     ctx.beginPath();
@@ -272,6 +338,7 @@ function drawGrid() {
 }
 
 function draw() {
+  ctx.shadowBlur = 0;
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   drawGrid();
 
@@ -302,6 +369,7 @@ function draw() {
 
 function drawNext() {
   const NB = 30;
+  nextCtx.shadowBlur = 0;
   nextCtx.clearRect(0, 0, nextCanvas.width, nextCanvas.height);
   const shape = next.shape;
   const offX = Math.floor((4 - shape[0].length) / 2);
@@ -333,6 +401,19 @@ function initTheme() {
 themeToggle.addEventListener('change', () => {
   applyTheme(themeToggle.checked ? 'light' : 'dark');
 });
+
+function applySkin(s) {
+  skin = ['retro', 'neon', 'pastel', 'pixel'].includes(s) ? s : 'retro';
+  document.body.dataset.skin = skin;
+  skinSelect.value = skin;
+  localStorage.setItem(SKIN_STORAGE_KEY, skin);
+}
+
+function initSkin() {
+  applySkin(localStorage.getItem(SKIN_STORAGE_KEY));
+}
+
+skinSelect.addEventListener('change', () => applySkin(skinSelect.value));
 
 function togglePause() {
   if (gameOver) return;
@@ -392,6 +473,8 @@ function init() {
 }
 
 document.addEventListener('keydown', e => {
+  const targetTag = e.target && e.target.tagName;
+  if (targetTag === 'SELECT' || targetTag === 'INPUT' || targetTag === 'TEXTAREA') return;
   if (e.code === 'KeyP') { togglePause(); return; }
   if (paused || gameOver || clearing) return;
   switch (e.code) {
@@ -419,4 +502,5 @@ document.addEventListener('keydown', e => {
 restartBtn.addEventListener('click', init);
 
 initTheme();
+initSkin();
 init();
