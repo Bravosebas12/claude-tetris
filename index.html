@@ -8,6 +8,16 @@
 </head>
 <body>
   <div class="wrapper">
+    <div class="title-row">
+      <h1 class="game-title">TETRIS</h1>
+      <select id="skin-select" aria-label="Seleccionar skin de bloques" title="Skin de bloques">
+        <option value="retro">Retro</option>
+        <option value="neon">Neon</option>
+        <option value="pastel">Pastel</option>
+        <option value="pixel">Pixel Art</option>
+      </select>
+      <button id="theme-toggle" aria-label="Toggle light/dark mode" title="Toggle light/dark mode">🌙</button>
+    </div>
     <div class="game-container">
       <canvas id="board" width="300" height="600"></canvas>
 
@@ -26,6 +36,11 @@
         </div>
 
         <div class="panel-section">
+          <span class="label">HOLD</span>
+          <canvas id="hold-canvas" width="120" height="120"></canvas>
+        </div>
+
+        <div class="panel-section">
           <span class="label">NEXT</span>
           <canvas id="next-canvas" width="120" height="120"></canvas>
         </div>
@@ -37,6 +52,7 @@
             <li><kbd>↑</kbd> rotar</li>
             <li><kbd>↓</kbd> bajar</li>
             <li><kbd>Space</kbd> caída</li>
+            <li><kbd>C</kbd> hold</li>
             <li><kbd>P</kbd> pausa</li>
           </ul>
         </div>
