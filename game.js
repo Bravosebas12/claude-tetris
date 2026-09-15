@@ -37,6 +37,7 @@ const CLEAR_GRAVITY = 0.0004; // px/ms^2 aplicado a los fragmentos
 
 const GRID_COLORS = { dark: '#22222e', light: '#c4c4d4' };
 const THEME_STORAGE_KEY = 'tetris-theme';
+const START_LEVEL_KEY = 'tetris-start-level';
 
 const canvas = document.getElementById('board');
 const ctx = canvas.getContext('2d');
@@ -50,9 +51,14 @@ const overlayTitle = document.getElementById('overlay-title');
 const overlayScore = document.getElementById('overlay-score');
 const restartBtn = document.getElementById('restart-btn');
 const themeToggle = document.getElementById('theme-toggle');
+const pauseOverlay = document.getElementById('pause-overlay');
+const pauseResumeBtn = document.getElementById('pause-resume-btn');
+const pauseRestartBtn = document.getElementById('pause-restart-btn');
+const startLevelSelect = document.getElementById('start-level-select');
 
 let board, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId, theme;
 let clearing, clearingRows, particles, clearAnimElapsed, clearAnimTotal;
+let startLevel;
 
 function createBoard() {
   return Array.from({ length: ROWS }, () => new Array(COLS).fill(0));
@@ -123,7 +129,7 @@ function removeRows(rows) {
 
   lines += cleared;
   score += (LINE_SCORES[cleared] || 0) * level;
-  level = Math.floor(lines / 10) + 1;
+  level = startLevel + Math.floor(lines / 10);
   dropInterval = Math.max(100, 1000 - (level - 1) * 90);
   updateHUD();
 }
@@ -334,19 +340,38 @@ themeToggle.addEventListener('change', () => {
   applyTheme(themeToggle.checked ? 'light' : 'dark');
 });
 
+function getStoredStartLevel() {
+  const v = parseInt(localStorage.getItem(START_LEVEL_KEY), 10);
+  return Number.isFinite(v) && v >= 1 && v <= 9 ? v : 1;
+}
+
+function setStoredStartLevel(v) {
+  localStorage.setItem(START_LEVEL_KEY, String(v));
+}
+
 function togglePause() {
   if (gameOver) return;
   paused = !paused;
   if (!paused) {
+    pauseOverlay.classList.add('hidden');
     lastTime = performance.now();
     loop(lastTime);
   } else {
     cancelAnimationFrame(animId);
-    overlayTitle.textContent = 'PAUSA';
-    overlayScore.textContent = '';
-    overlay.classList.remove('hidden');
+    startLevelSelect.value = getStoredStartLevel();
+    pauseOverlay.classList.remove('hidden');
   }
 }
+
+pauseResumeBtn.addEventListener('click', () => {
+  if (paused) togglePause();
+});
+
+pauseRestartBtn.addEventListener('click', init);
+
+startLevelSelect.addEventListener('change', e => {
+  setStoredStartLevel(parseInt(e.target.value, 10));
+});
 
 function loop(ts) {
   if (gameOver) return;
@@ -374,25 +399,32 @@ function init() {
   board = createBoard();
   score = 0;
   lines = 0;
-  level = 1;
+  startLevel = getStoredStartLevel();
+  level = startLevel;
   paused = false;
   gameOver = false;
   clearing = false;
   clearingRows = [];
   particles = [];
-  dropInterval = 1000;
+  dropInterval = Math.max(100, 1000 - (level - 1) * 90);
   dropAccum = 0;
   lastTime = performance.now();
   next = randomPiece();
   spawn();
   updateHUD();
   overlay.classList.add('hidden');
+  pauseOverlay.classList.add('hidden');
   cancelAnimationFrame(animId);
   animId = requestAnimationFrame(loop);
 }
 
 document.addEventListener('keydown', e => {
   if (e.code === 'KeyP') { togglePause(); return; }
+  if (e.code === 'Escape') {
+    if (e.target === startLevelSelect) return; // let the native select popup close on its own
+    togglePause();
+    return;
+  }
   if (paused || gameOver || clearing) return;
   switch (e.code) {
     case 'ArrowLeft':
