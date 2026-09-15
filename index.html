@@ -15,6 +15,14 @@
       <canvas id="board" width="300" height="600"></canvas>
 
       <aside class="panel">
+        <div class="panel-section" id="highscores-section">
+          <span class="label">TOP SCORES</span>
+          <ol id="highscores-list"></ol>
+          <span class="label">MEJOR COMBO: <span id="best-combo">0</span></span>
+          <span class="label">MEJORES LÍNEAS: <span id="best-lines">0</span></span>
+          <button id="reset-scores-btn">Reset</button>
+        </div>
+
         <div class="panel-section">
           <span class="label">SCORE</span>
           <span class="value" id="score">0</span>
@@ -68,6 +76,10 @@
       <div class="overlay-box">
         <p id="overlay-title">GAME OVER</p>
         <p id="overlay-score"></p>
+        <div id="highscore-entry" class="hidden">
+          <input id="highscore-name-input" maxlength="12" placeholder="Tu nombre" />
+          <button id="save-highscore-btn">Guardar</button>
+        </div>
         <button id="restart-btn">Reiniciar</button>
       </div>
     </div>
