@@ -1,0 +1,60 @@
+name: Claude Issue Triage
+
+on:
+  issues:
+    types: [opened, edited]
+
+jobs:
+  triage:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      id-token: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Triage issue with Claude
+        id: claude-triage
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+
+          prompt: |
+            You are triaging issue #${{ github.event.issue.number }} ("${{ github.event.issue.title }}")
+            in this repository, a vanilla JavaScript Tetris game (see CLAUDE.md for architecture:
+            index.html for DOM/canvas, style.css for visuals only, game.js for all game logic).
+
+            Do the following:
+
+            1. Read the issue title and body.
+            2. Read CLAUDE.md and skim game.js/index.html/style.css as needed to understand which
+               part of the codebase the issue relates to.
+            3. Apply the labels that best fit the issue. Reuse existing repository labels
+               (e.g. bug, enhancement, question, documentation, duplicate, invalid, wontfix,
+               help wanted, good first issue) — only create a new label if none of the existing
+               ones reasonably fit. Replace any labels you previously applied to this issue if your
+               new analysis changes the classification (this workflow can also run on issue edits).
+            4. Post a single comment on the issue with a general diagnosis to help whoever
+               implements the fix later. Do NOT write or propose the fix code itself. Include:
+               - A short restatement of the problem in your own words.
+               - Which file(s)/function(s) are likely involved (e.g. `collide()` in game.js,
+                 `#board` canvas sizing in index.html), based on the architecture notes in CLAUDE.md.
+               - A plausible root cause or the key mechanic at play (e.g. wall kicks, line clear
+                 scoring, drop interval calculation), if one can be inferred from the description.
+               - Anything ambiguous or missing from the report that would help narrow it down further.
+               If this issue already has a diagnosis comment from you and the edit doesn't
+               materially change the analysis, do not post a duplicate — you may skip commenting.
+
+            Keep the comment concise and technical; it's read by the developer who will implement
+            the solution, not the issue reporter.
+
+            Format the comment in GitHub-flavored Markdown (e.g. backticks for code/file/function
+            names, bullet lists, bold for emphasis) so it renders cleanly on GitHub.
+
+          claude_args: |
+            --allowedTools "Bash(gh issue edit:*),Bash(gh issue view:*),Bash(gh issue comment:*),Bash(gh label list:*),Bash(gh label create:*)"

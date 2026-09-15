@@ -8,6 +8,13 @@
 </head>
 <body>
   <div class="wrapper">
+    <div class="top-bar">
+      <h1 class="game-title">TETRIS</h1>
+      <label class="theme-toggle" title="Cambiar tema claro/oscuro">
+        <input type="checkbox" id="theme-switch" />
+        <span class="slider"></span>
+      </label>
+    </div>
     <div class="game-container">
       <canvas id="board" width="300" height="600"></canvas>
 
@@ -37,7 +44,7 @@
             <li><kbd>↑</kbd> rotar</li>
             <li><kbd>↓</kbd> bajar</li>
             <li><kbd>Space</kbd> caída</li>
-            <li><kbd>P</kbd> pausa</li>
+            <li><kbd>P</kbd> / <kbd>Esc</kbd> pausa</li>
           </ul>
         </div>
       </aside>
@@ -45,9 +52,42 @@
 
     <div id="overlay" class="overlay hidden">
       <div class="overlay-box">
-        <p id="overlay-title">GAME OVER</p>
-        <p id="overlay-score"></p>
-        <button id="restart-btn">Reiniciar</button>
+        <div id="gameover-menu" class="overlay-submenu hidden">
+          <p id="overlay-title">GAME OVER</p>
+          <p id="overlay-score"></p>
+          <button id="restart-btn">Reiniciar</button>
+        </div>
+
+        <div id="pause-menu" class="overlay-submenu hidden">
+          <p id="pause-title">PAUSA</p>
+          <button id="resume-btn">Reanudar</button>
+          <button id="pause-restart-btn">Reiniciar</button>
+          <button id="toggle-controls-btn">Ver controles</button>
+
+          <ul id="pause-controls" class="pause-controls hidden">
+            <li><kbd>←</kbd><kbd>→</kbd> mover</li>
+            <li><kbd>↑</kbd> rotar</li>
+            <li><kbd>↓</kbd> bajar</li>
+            <li><kbd>Space</kbd> caída</li>
+            <li><kbd>P</kbd> / <kbd>Esc</kbd> pausa</li>
+          </ul>
+
+          <div class="level-select-row">
+            <label for="start-level-select">Nivel inicial</label>
+            <select id="start-level-select">
+              <option value="1" selected>1</option>
+              <option value="2">2</option>
+              <option value="3">3</option>
+              <option value="4">4</option>
+              <option value="5">5</option>
+              <option value="6">6</option>
+              <option value="7">7</option>
+              <option value="8">8</option>
+              <option value="9">9</option>
+              <option value="10">10</option>
+            </select>
+          </div>
+        </div>
       </div>
     </div>
   </div>
