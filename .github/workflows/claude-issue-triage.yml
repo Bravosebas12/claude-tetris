@@ -1,0 +1,77 @@
+name: Claude Issue Triage
+
+on:
+  issues:
+    types: [opened, edited]
+
+concurrency:
+  group: claude-issue-triage-${{ github.event.issue.number }}
+  cancel-in-progress: true
+
+jobs:
+  triage:
+    if: github.event.sender.login != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+      id-token: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Run Claude Code Issue Triage
+        id: claude-triage
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+
+          prompt: |
+            Estás haciendo triage automático del issue #${{ github.event.issue.number }}
+            en ${{ github.repository }}: un clon de Tetris en JavaScript vanilla de un
+            solo archivo (game.js, HTML5 Canvas, sin dependencias). Lee CLAUDE.md para
+            entender la arquitectura antes de diagnosticar.
+
+            Pasos:
+
+            1. Revisa el título y cuerpo del issue (usa `gh issue view` si necesitas
+               confirmarlos) y el código relevante ya presente en este checkout
+               (game.js, index.html, style.css, CLAUDE.md) para fundamentar el
+               diagnóstico en funciones reales: collide, rotateCW, tryRotate, merge,
+               clearLines, ghostY, hardDrop, softDrop, lockPiece, spawn, draw,
+               drawGrid, drawBlock, drawNext, loop, init.
+
+            2. Clasifica el issue y aplica labels con
+               `gh issue edit ${{ github.event.issue.number }} --add-label "<label>"`,
+               eligiendo ÚNICAMENTE de esta lista fija (nunca inventes labels nuevos
+               ni elimines labels existentes que no estén en esta lista):
+               - Un tipo: bug | enhancement | question | documentation | duplicate | invalid | wontfix
+               - needs-triage (siempre)
+               - Una o más áreas si aplica: area:gameplay | area:rendering | area:scoring
+
+            3. Publica un comentario de diagnóstico con
+               `gh issue comment ${{ github.event.issue.number }}` usando las flags
+               `--edit-last --create-if-none` para actualizar el mismo comentario en
+               vez de duplicarlo en cada edición del issue. El comentario debe:
+               - Empezar con la línea literal `<!-- claude-triage:auto -->` (marcador
+                 para que --edit-last lo identifique).
+               - Incluir: resumen del problema, diagnóstico de causa probable,
+                 archivos/funciones de game.js posiblemente involucrados, y próximos
+                 pasos sugeridos para implementar la solución.
+               - NO incluir fragmentos de código ni una propuesta de implementación
+                 completa — solo el diagnóstico de causa y área afectada.
+               - Aclarar que es un primer análisis automático, no un diagnóstico
+                 definitivo.
+
+            Restricciones estrictas:
+            - Nunca edites el título ni el cuerpo del issue.
+            - Nunca cierres, asignes ni elimines el issue.
+            - No uses comandos de gh distintos de `gh issue view`, `gh issue edit
+              --add-label` y `gh issue comment`.
+
+          claude_args: |
+            --allowedTools "Bash(gh issue view:*),Bash(gh issue edit:*),Bash(gh issue comment:*),Bash(gh label list:*)"
