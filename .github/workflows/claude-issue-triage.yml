@@ -1,0 +1,44 @@
+name: Claude Issue Triage
+
+on:
+  issues:
+    types: [opened, edited]
+
+jobs:
+  triage:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      id-token: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Run Claude Issue Triage
+        id: claude-triage
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: |
+            Triage issue #${{ github.event.issue.number }} in this repository.
+
+            1. Read the issue title and body, and review the codebase (game.js, index.html,
+               style.css) as described in CLAUDE.md to understand the context.
+            2. Run `gh label list` to see the labels that already exist in this repository.
+               Choose the label(s) that best fit this issue (e.g. bug, enhancement, question).
+               Do not create new labels.
+            3. Apply the chosen label(s) with:
+               `gh issue edit ${{ github.event.issue.number }} --add-label "<label>"`
+            4. Post a diagnosis comment on the issue with
+               `gh issue comment ${{ github.event.issue.number }} --body "..."` that includes:
+               - A short summary of the problem being reported.
+               - The likely root cause and which file(s)/function(s) are involved
+                 (game.js, index.html, or style.css).
+               - Suggested next steps for implementing a fix or the requested feature.
+
+            Only use the tools needed to read the repo, list/apply labels, and post the comment.
+          claude_args: '--allowedTools "Bash(gh issue edit:*),Bash(gh issue comment:*),Bash(gh label list:*),Bash(gh issue view:*)"'

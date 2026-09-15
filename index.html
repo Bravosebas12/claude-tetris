@@ -8,6 +8,10 @@
 </head>
 <body>
   <div class="wrapper">
+    <div class="title-row">
+      <h1 class="game-title">TETRIS</h1>
+      <button id="theme-toggle" aria-label="Toggle light/dark mode" title="Toggle light/dark mode">🌙</button>
+    </div>
     <div class="game-container">
       <canvas id="board" width="300" height="600"></canvas>
 
@@ -26,6 +30,11 @@
         </div>
 
         <div class="panel-section">
+          <span class="label">HOLD</span>
+          <canvas id="hold-canvas" width="120" height="120"></canvas>
+        </div>
+
+        <div class="panel-section">
           <span class="label">NEXT</span>
           <canvas id="next-canvas" width="120" height="120"></canvas>
         </div>
@@ -37,7 +46,8 @@
             <li><kbd>↑</kbd> rotar</li>
             <li><kbd>↓</kbd> bajar</li>
             <li><kbd>Space</kbd> caída</li>
-            <li><kbd>P</kbd> pausa</li>
+            <li><kbd>C</kbd> hold</li>
+            <li><kbd>P</kbd> / <kbd>Esc</kbd> pausa</li>
           </ul>
         </div>
       </aside>
@@ -47,7 +57,33 @@
       <div class="overlay-box">
         <p id="overlay-title">GAME OVER</p>
         <p id="overlay-score"></p>
-        <button id="restart-btn">Reiniciar</button>
+        <button id="restart-btn" class="menu-btn">Reiniciar</button>
+      </div>
+    </div>
+
+    <div id="pause-overlay" class="overlay hidden">
+      <div class="overlay-box">
+        <p class="overlay-heading">PAUSA</p>
+        <div id="pause-main-view">
+          <label class="pause-field">
+            <span class="label">NIVEL INICIAL</span>
+            <select id="start-level-select"></select>
+          </label>
+          <button id="resume-btn" class="menu-btn">Reanudar</button>
+          <button id="restart-from-pause-btn" class="menu-btn">Reiniciar</button>
+          <button id="view-controls-btn" class="menu-btn">Ver Controles</button>
+        </div>
+        <div id="pause-controls-view" class="hidden">
+          <ul class="pause-controls-list">
+            <li><kbd>←</kbd><kbd>→</kbd> mover</li>
+            <li><kbd>↑</kbd> / <kbd>X</kbd> rotar</li>
+            <li><kbd>↓</kbd> bajar</li>
+            <li><kbd>Space</kbd> caída</li>
+            <li><kbd>C</kbd> / <kbd>Shift</kbd> hold</li>
+            <li><kbd>P</kbd> / <kbd>Esc</kbd> pausa</li>
+          </ul>
+          <button id="back-to-pause-btn" class="menu-btn">Volver</button>
+        </div>
       </div>
     </div>
   </div>

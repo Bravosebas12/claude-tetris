@@ -11,8 +11,9 @@ const COLORS = [
   '#ba68c8', // T - purple
   '#81c784', // S - green
   '#e57373', // Z - red
-  '#7986cb', // J - indigo
+  '#64b5f6', // J - pale blue
   '#ffb74d', // L - orange
+  '#f06292', // Ring - pink
 ];
 
 const PIECES = [
@@ -24,14 +25,22 @@ const PIECES = [
   [[5,5,0],[0,5,5],[0,0,0]],                  // Z
   [[6,0,0],[6,6,6],[0,0,0]],                  // J
   [[0,0,7],[7,7,7],[0,0,0]],                  // L
+  [[8,8,8],[8,0,8],[8,8,8]],                  // Ring (3x3, hollow center)
 ];
 
 const LINE_SCORES = [0, 100, 300, 500, 800];
+
+const PIECE_WEIGHTS = [1, 1, 1, 1, 1, 1, 1, 0.5]; // index 0 = type 1 ... index 7 = type 8 (Ring)
+
+const THEME_KEY = 'tetris-theme';
+const GRID_COLORS = { dark: '#22222e', light: '#d8dae8' };
 
 const canvas = document.getElementById('board');
 const ctx = canvas.getContext('2d');
 const nextCanvas = document.getElementById('next-canvas');
 const nextCtx = nextCanvas.getContext('2d');
+const holdCanvas = document.getElementById('hold-canvas');
+const holdCtx = holdCanvas.getContext('2d');
 const scoreEl = document.getElementById('score');
 const linesEl = document.getElementById('lines');
 const levelEl = document.getElementById('level');
@@ -39,17 +48,64 @@ const overlay = document.getElementById('overlay');
 const overlayTitle = document.getElementById('overlay-title');
 const overlayScore = document.getElementById('overlay-score');
 const restartBtn = document.getElementById('restart-btn');
+const themeToggleBtn = document.getElementById('theme-toggle');
+const pauseOverlay = document.getElementById('pause-overlay');
+const pauseMainView = document.getElementById('pause-main-view');
+const pauseControlsView = document.getElementById('pause-controls-view');
+const startLevelSelect = document.getElementById('start-level-select');
+const resumeBtn = document.getElementById('resume-btn');
+const restartFromPauseBtn = document.getElementById('restart-from-pause-btn');
+const viewControlsBtn = document.getElementById('view-controls-btn');
+const backToPauseBtn = document.getElementById('back-to-pause-btn');
 
-let board, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId;
+let board, current, next, hold, holdUsed, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId;
+let startLevel = 1;
+
+function getTheme() {
+  return document.documentElement.dataset.theme === 'light' ? 'light' : 'dark';
+}
+
+function applyTheme(theme) {
+  document.documentElement.dataset.theme = theme;
+  themeToggleBtn.textContent = theme === 'light' ? '☀️' : '🌙';
+  localStorage.setItem(THEME_KEY, theme);
+}
+
+function initTheme() {
+  const saved = localStorage.getItem(THEME_KEY);
+  applyTheme(saved === 'light' ? 'light' : 'dark');
+}
+
+themeToggleBtn.addEventListener('click', () => {
+  applyTheme(getTheme() === 'light' ? 'dark' : 'light');
+  draw();
+});
+
+function dropIntervalForLevel(lvl) {
+  return Math.max(100, 1000 - (lvl - 1) * 90);
+}
 
 function createBoard() {
   return Array.from({ length: ROWS }, () => new Array(COLS).fill(0));
 }
 
-function randomPiece() {
-  const type = Math.floor(Math.random() * 7) + 1;
+function weightedPieceType() {
+  const total = PIECE_WEIGHTS.reduce((a, b) => a + b, 0);
+  let r = Math.random() * total;
+  for (let i = 0; i < PIECE_WEIGHTS.length; i++) {
+    if (r < PIECE_WEIGHTS[i]) return i + 1;
+    r -= PIECE_WEIGHTS[i];
+  }
+  return PIECE_WEIGHTS.length;
+}
+
+function pieceFromType(type) {
   const shape = PIECES[type].map(row => [...row]);
   return { type, shape, x: Math.floor(COLS / 2) - Math.floor(shape[0].length / 2), y: 0 };
+}
+
+function randomPiece() {
+  return pieceFromType(weightedPieceType());
 }
 
 function collide(shape, ox, oy) {
@@ -107,7 +163,7 @@ function clearLines() {
     lines += cleared;
     score += (LINE_SCORES[cleared] || 0) * level;
     level = Math.floor(lines / 10) + 1;
-    dropInterval = Math.max(100, 1000 - (level - 1) * 90);
+    dropInterval = dropIntervalForLevel(level);
     updateHUD();
   }
 }
@@ -139,6 +195,27 @@ function lockPiece() {
   merge();
   clearLines();
   spawn();
+  holdUsed = false;
+  holdCanvas.classList.remove('locked');
+}
+
+function holdPiece() {
+  if (holdUsed) return;
+  if (hold === null) {
+    hold = { type: current.type };
+    spawn();
+  } else {
+    const swapType = hold.type;
+    hold = { type: current.type };
+    current = pieceFromType(swapType);
+    if (collide(current.shape, current.x, current.y)) {
+      endGame();
+      return;
+    }
+  }
+  holdUsed = true;
+  holdCanvas.classList.add('locked');
+  drawHold();
 }
 
 function spawn() {
@@ -169,7 +246,7 @@ function drawBlock(context, x, y, colorIndex, size, alpha) {
 }
 
 function drawGrid() {
-  ctx.strokeStyle = '#22222e';
+  ctx.strokeStyle = GRID_COLORS[getTheme()];
   ctx.lineWidth = 0.5;
   for (let c = 1; c < COLS; c++) {
     ctx.beginPath();
@@ -218,6 +295,18 @@ function drawNext() {
       drawBlock(nextCtx, offX + c, offY + r, shape[r][c], NB);
 }
 
+function drawHold() {
+  const HB = 30;
+  holdCtx.clearRect(0, 0, holdCanvas.width, holdCanvas.height);
+  if (!hold) return;
+  const shape = PIECES[hold.type];
+  const offX = Math.floor((4 - shape[0].length) / 2);
+  const offY = Math.floor((4 - shape.length) / 2);
+  for (let r = 0; r < shape.length; r++)
+    for (let c = 0; c < shape[r].length; c++)
+      drawBlock(holdCtx, offX + c, offY + r, shape[r][c], HB);
+}
+
 function endGame() {
   gameOver = true;
   cancelAnimationFrame(animId);
@@ -226,17 +315,37 @@ function endGame() {
   overlay.classList.remove('hidden');
 }
 
+function populateStartLevelSelect() {
+  startLevelSelect.innerHTML = '';
+  for (let i = 1; i <= 10; i++) {
+    const opt = document.createElement('option');
+    opt.value = i; opt.textContent = i;
+    startLevelSelect.appendChild(opt);
+  }
+  startLevelSelect.value = startLevel;
+}
+
+function openPauseMenu() {
+  pauseMainView.classList.remove('hidden');
+  pauseControlsView.classList.add('hidden');
+  startLevelSelect.value = startLevel;
+  pauseOverlay.classList.remove('hidden');
+}
+
+function closePauseMenu() {
+  pauseOverlay.classList.add('hidden');
+}
+
 function togglePause() {
   if (gameOver) return;
   paused = !paused;
   if (!paused) {
+    closePauseMenu();
     lastTime = performance.now();
     loop(lastTime);
   } else {
     cancelAnimationFrame(animId);
-    overlayTitle.textContent = 'PAUSA';
-    overlayScore.textContent = '';
-    overlay.classList.remove('hidden');
+    openPauseMenu();
   }
 }
 
@@ -250,6 +359,7 @@ function loop(ts) {
       current.y++;
     } else {
       lockPiece();
+      if (gameOver) return;
     }
   }
   draw();
@@ -260,22 +370,28 @@ function init() {
   board = createBoard();
   score = 0;
   lines = 0;
-  level = 1;
+  level = startLevel;
   paused = false;
   gameOver = false;
-  dropInterval = 1000;
+  dropInterval = dropIntervalForLevel(level);
   dropAccum = 0;
   lastTime = performance.now();
+  hold = null;
+  holdUsed = false;
+  holdCanvas.classList.remove('locked');
   next = randomPiece();
   spawn();
+  drawHold();
   updateHUD();
   overlay.classList.add('hidden');
+  pauseOverlay.classList.add('hidden');
   cancelAnimationFrame(animId);
   animId = requestAnimationFrame(loop);
 }
 
 document.addEventListener('keydown', e => {
-  if (e.code === 'KeyP') { togglePause(); return; }
+  if (e.code === 'Escape' && e.target === startLevelSelect) return;
+  if (e.code === 'KeyP' || e.code === 'Escape') { togglePause(); return; }
   if (paused || gameOver) return;
   switch (e.code) {
     case 'ArrowLeft':
@@ -295,10 +411,31 @@ document.addEventListener('keydown', e => {
       e.preventDefault();
       hardDrop();
       break;
+    case 'KeyC':
+    case 'ShiftLeft':
+    case 'ShiftRight':
+      holdPiece();
+      break;
   }
   updateHUD();
 });
 
 restartBtn.addEventListener('click', init);
 
+resumeBtn.addEventListener('click', () => { if (paused) togglePause(); });
+restartFromPauseBtn.addEventListener('click', () => { closePauseMenu(); init(); });
+viewControlsBtn.addEventListener('click', () => {
+  pauseMainView.classList.add('hidden');
+  pauseControlsView.classList.remove('hidden');
+});
+backToPauseBtn.addEventListener('click', () => {
+  pauseControlsView.classList.add('hidden');
+  pauseMainView.classList.remove('hidden');
+});
+startLevelSelect.addEventListener('change', () => {
+  startLevel = parseInt(startLevelSelect.value, 10);
+});
+
+initTheme();
+populateStartLevelSelect();
 init();
