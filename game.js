@@ -13,6 +13,7 @@ const COLORS = [
   '#e57373', // Z - red
   '#7986cb', // J - indigo
   '#ffb74d', // L - orange
+  '#9e9e9e', // N - tuerca (nut)
 ];
 
 const PIECES = [
@@ -24,9 +25,15 @@ const PIECES = [
   [[5,5,0],[0,5,5],[0,0,0]],                  // Z
   [[6,0,0],[6,6,6],[0,0,0]],                  // J
   [[0,0,7],[7,7,7],[0,0,0]],                  // L
+  [[8,8,8],[8,0,8],[8,8,8]],                  // N - tuerca (nut, hueco inerte)
 ];
 
 const LINE_SCORES = [0, 100, 300, 500, 800];
+
+const CLEAR_COLUMN_STAGGER = 12; // ms de retraso entre columna y columna (barrido izq->der)
+const CLEAR_PARTICLE_LIFE = 180; // ms de vida de cada fragmento
+const CLEAR_PARTICLES_PER_BLOCK = 5;
+const CLEAR_GRAVITY = 0.0004; // px/ms^2 aplicado a los fragmentos
 
 const GRID_COLORS = { dark: '#22222e', light: '#c4c4d4' };
 const THEME_STORAGE_KEY = 'tetris-theme';
@@ -45,13 +52,14 @@ const restartBtn = document.getElementById('restart-btn');
 const themeToggle = document.getElementById('theme-toggle');
 
 let board, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId, theme;
+let clearing, clearingRows, particles, clearAnimElapsed, clearAnimTotal;
 
 function createBoard() {
   return Array.from({ length: ROWS }, () => new Array(COLS).fill(0));
 }
 
 function randomPiece() {
-  const type = Math.floor(Math.random() * 7) + 1;
+  const type = Math.floor(Math.random() * 8) + 1;
   const shape = PIECES[type].map(row => [...row]);
   return { type, shape, x: Math.floor(COLS / 2) - Math.floor(shape[0].length / 2), y: 0 };
 }
@@ -97,23 +105,93 @@ function merge() {
         board[current.y + r][current.x + c] = current.shape[r][c];
 }
 
-function clearLines() {
-  let cleared = 0;
-  for (let r = ROWS - 1; r >= 0; r--) {
-    if (board[r].every(v => v !== 0)) {
-      board.splice(r, 1);
-      board.unshift(new Array(COLS).fill(0));
-      cleared++;
-      r++;
+function getFullRows() {
+  const rows = [];
+  for (let r = 0; r < ROWS; r++) {
+    if (board[r].every(v => v !== 0)) rows.push(r);
+  }
+  return rows;
+}
+
+function removeRows(rows) {
+  if (!rows.length) return;
+  const rowSet = new Set(rows);
+  const kept = board.filter((_, r) => !rowSet.has(r));
+  const cleared = rows.length;
+  const emptyRows = Array.from({ length: cleared }, () => new Array(COLS).fill(0));
+  board = [...emptyRows, ...kept];
+
+  lines += cleared;
+  score += (LINE_SCORES[cleared] || 0) * level;
+  level = Math.floor(lines / 10) + 1;
+  dropInterval = Math.max(100, 1000 - (level - 1) * 90);
+  updateHUD();
+}
+
+function startClearAnimation(rows) {
+  clearingRows = rows;
+  particles = [];
+  for (const r of rows) {
+    for (let c = 0; c < COLS; c++) {
+      const colorIndex = board[r][c];
+      if (!colorIndex) continue;
+      const cx = c * BLOCK + BLOCK / 2;
+      const cy = r * BLOCK + BLOCK / 2;
+      for (let i = 0; i < CLEAR_PARTICLES_PER_BLOCK; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const speed = 0.05 + Math.random() * 0.08;
+        particles.push({
+          x: cx,
+          y: cy,
+          vx: Math.cos(angle) * speed,
+          vy: Math.sin(angle) * speed - 0.05,
+          size: 3 + Math.random() * 3,
+          color: COLORS[colorIndex],
+          delay: c * CLEAR_COLUMN_STAGGER,
+          life: CLEAR_PARTICLE_LIFE,
+          maxLife: CLEAR_PARTICLE_LIFE,
+        });
+      }
     }
   }
-  if (cleared) {
-    lines += cleared;
-    score += (LINE_SCORES[cleared] || 0) * level;
-    level = Math.floor(lines / 10) + 1;
-    dropInterval = Math.max(100, 1000 - (level - 1) * 90);
-    updateHUD();
+  clearAnimElapsed = 0;
+  clearAnimTotal = (COLS - 1) * CLEAR_COLUMN_STAGGER + CLEAR_PARTICLE_LIFE;
+  clearing = true;
+}
+
+function updateClearAnimation(dt) {
+  clearAnimElapsed += dt;
+  for (const p of particles) {
+    if (p.delay > 0) {
+      p.delay -= dt;
+      continue;
+    }
+    p.vy += CLEAR_GRAVITY * dt;
+    p.x += p.vx * dt;
+    p.y += p.vy * dt;
+    p.life -= dt;
   }
+  if (clearAnimElapsed >= clearAnimTotal) {
+    finishClearAnimation();
+  }
+}
+
+function finishClearAnimation() {
+  removeRows(clearingRows);
+  clearingRows = [];
+  particles = [];
+  clearing = false;
+  spawn();
+}
+
+function drawParticles() {
+  for (const p of particles) {
+    if (p.delay > 0) continue;
+    ctx.globalAlpha = Math.max(0, p.life / p.maxLife);
+    ctx.fillStyle = p.color;
+    ctx.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size);
+  }
+  ctx.globalAlpha = 1;
 }
 
 function ghostY() {
@@ -141,8 +219,12 @@ function softDrop() {
 
 function lockPiece() {
   merge();
-  clearLines();
-  spawn();
+  const rows = getFullRows();
+  if (rows.length) {
+    startClearAnimation(rows);
+  } else {
+    spawn();
+  }
 }
 
 function spawn() {
@@ -193,10 +275,17 @@ function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   drawGrid();
 
-  // board
-  for (let r = 0; r < ROWS; r++)
+  // board (las filas en animación de limpieza se omiten: se dibujan como partículas)
+  for (let r = 0; r < ROWS; r++) {
+    if (clearing && clearingRows.includes(r)) continue;
     for (let c = 0; c < COLS; c++)
       drawBlock(ctx, c, r, board[r][c], BLOCK);
+  }
+
+  if (clearing) {
+    drawParticles();
+    return;
+  }
 
   // ghost
   const gy = ghostY();
@@ -263,13 +352,18 @@ function loop(ts) {
   if (gameOver) return;
   const dt = ts - lastTime;
   lastTime = ts;
-  dropAccum += dt;
-  if (dropAccum >= dropInterval) {
-    dropAccum = 0;
-    if (!collide(current.shape, current.x, current.y + 1)) {
-      current.y++;
-    } else {
-      lockPiece();
+
+  if (clearing) {
+    updateClearAnimation(dt);
+  } else {
+    dropAccum += dt;
+    if (dropAccum >= dropInterval) {
+      dropAccum = 0;
+      if (!collide(current.shape, current.x, current.y + 1)) {
+        current.y++;
+      } else {
+        lockPiece();
+      }
     }
   }
   draw();
@@ -283,6 +377,9 @@ function init() {
   level = 1;
   paused = false;
   gameOver = false;
+  clearing = false;
+  clearingRows = [];
+  particles = [];
   dropInterval = 1000;
   dropAccum = 0;
   lastTime = performance.now();
@@ -296,7 +393,7 @@ function init() {
 
 document.addEventListener('keydown', e => {
   if (e.code === 'KeyP') { togglePause(); return; }
-  if (paused || gameOver) return;
+  if (paused || gameOver || clearing) return;
   switch (e.code) {
     case 'ArrowLeft':
       if (!collide(current.shape, current.x - 1, current.y)) current.x--;
