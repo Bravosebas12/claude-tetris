@@ -41,6 +41,10 @@
             <li><kbd>P</kbd> pausa</li>
           </ul>
         </div>
+
+        <div class="panel-section">
+          <button id="weather-btn" class="weather-button">🌤️ Clima</button>
+        </div>
       </aside>
     </div>
 
@@ -49,6 +53,39 @@
         <p id="overlay-title">GAME OVER</p>
         <p id="overlay-score"></p>
         <button id="restart-btn">Reiniciar</button>
+      </div>
+    </div>
+
+    <div id="weather-modal" class="weather-modal hidden">
+      <div class="weather-modal-content">
+        <button id="weather-close-btn" class="weather-close-btn">✕</button>
+        <div class="weather-icon">🌤️</div>
+        <h2>Clima en Rionegro</h2>
+        <p class="weather-location">Antioquia, Colombia</p>
+        <table class="weather-table">
+          <tbody>
+            <tr>
+              <td class="weather-label">Temperatura</td>
+              <td class="weather-value" id="temp">-</td>
+            </tr>
+            <tr>
+              <td class="weather-label">Sensación Térmica</td>
+              <td class="weather-value" id="apparent">-</td>
+            </tr>
+            <tr>
+              <td class="weather-label">Humedad Relativa</td>
+              <td class="weather-value" id="humidity">-</td>
+            </tr>
+            <tr>
+              <td class="weather-label">Velocidad del Viento</td>
+              <td class="weather-value" id="wind">-</td>
+            </tr>
+          </tbody>
+        </table>
+        <p class="weather-meta">
+          <span id="timezone">-</span><br>
+          <span id="update-time">-</span>
+        </p>
       </div>
     </div>
   </div>

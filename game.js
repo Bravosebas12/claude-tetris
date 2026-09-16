@@ -301,4 +301,39 @@ document.addEventListener('keydown', e => {
 
 restartBtn.addEventListener('click', init);
 
+// Weather Modal
+const weatherBtn = document.getElementById('weather-btn');
+const weatherModal = document.getElementById('weather-modal');
+const weatherCloseBtn = document.getElementById('weather-close-btn');
+
+weatherBtn.addEventListener('click', fetchAndShowWeather);
+weatherCloseBtn.addEventListener('click', () => weatherModal.classList.add('hidden'));
+weatherModal.addEventListener('click', (e) => {
+  if (e.target === weatherModal) weatherModal.classList.add('hidden');
+});
+
+async function fetchAndShowWeather() {
+  const LAT = '6.1631';
+  const LON = '-75.4140';
+  const URL = `https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LON}&current=temperature_2m,relative_humidity_2m,apparent_temperature,wind_speed_10m&timezone=auto`;
+
+  try {
+    const res = await fetch(URL);
+    const data = await res.json();
+    const current = data.current;
+
+    document.getElementById('temp').textContent = `${current.temperature_2m}°C`;
+    document.getElementById('apparent').textContent = `${current.apparent_temperature}°C`;
+    document.getElementById('humidity').textContent = `${current.relative_humidity_2m}%`;
+    document.getElementById('wind').textContent = `${current.wind_speed_10m} km/h`;
+    document.getElementById('timezone').textContent = `Zona: ${data.timezone}`;
+    document.getElementById('update-time').textContent = `Actualizado: ${current.time}`;
+
+    weatherModal.classList.remove('hidden');
+  } catch (err) {
+    console.error('Error fetching weather:', err);
+    alert('Error al obtener el clima. Intenta de nuevo.');
+  }
+}
+
 init();
