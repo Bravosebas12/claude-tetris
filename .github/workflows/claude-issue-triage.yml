@@ -1,0 +1,61 @@
+name: Claude Issue Triage
+
+on:
+  issues:
+    types: [opened, edited]
+
+jobs:
+  triage:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      id-token: write
+
+    steps:
+      - name: Ensure custom labels exist
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Area labels
+          gh label create "area:rotation" --color "5319e7" --description "Rotation logic (rotateCW, tryRotate, wall kicks)" --force || true
+          gh label create "area:collision" --color "b60205" --description "Collision detection (collide, merge, board state)" --force || true
+          gh label create "area:loop" --color "d93f0b" --description "Game loop, lock delay, piece spawning" --force || true
+          gh label create "area:rendering" --color "0e8a16" --description "Drawing (drawBlock, drawNext, canvas sizing)" --force || true
+          gh label create "area:input" --color "1d76db" --description "Keyboard input and controls" --force || true
+          gh label create "area:scoring" --color "fbca04" --description "Score, lines, level, drop interval" --force || true
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Run Claude Issue Triage
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          claude_args: '--allowedTools "Bash(gh issue edit:*),Bash(gh issue comment:*),Bash(gh issue view:*)"'
+          prompt: |
+            Analiza el issue #${{ github.event.issue.number }} de este repo (Tetris vanilla JS,
+            ver CLAUDE.md para la arquitectura: game.js es un único archivo con estado global,
+            board/piezas/loop/colisión/render).
+
+            1. Lee el título y cuerpo del issue con `gh issue view ${{ github.event.issue.number }}`.
+            2. Elige exactamente UNA label de tipo: bug, enhancement, question, duplicate,
+               invalid, wontfix.
+            3. Elige 0 a 2 labels de área si aplica: area:rotation, area:collision, area:loop,
+               area:rendering, area:input, area:scoring — basándote en qué función/archivo de
+               game.js está involucrada.
+            4. Aplica las labels elegidas con `gh issue edit ${{ github.event.issue.number }} --add-label "..."`.
+            5. Escribe un diagnóstico técnico corto (no una solución, no código):
+               - Resumen del problema en una línea.
+               - Área/función de game.js probablemente involucrada, citando archivo:línea si es posible.
+               - Hipótesis de causa raíz.
+               - Qué información falta, si el issue no alcanza para diagnosticar.
+            6. Publica ese diagnóstico como comentario. Si ya existe un comentario tuyo anterior
+               en este issue (por una edición previa), actualízalo con
+               `gh issue comment ${{ github.event.issue.number }} --edit-last --body "..."`
+               en vez de crear uno nuevo. Si no existe, créalo con
+               `gh issue comment ${{ github.event.issue.number }} --body "..."`.
+
+            No modifiques código ni abras PRs — esto es solo diagnóstico y clasificación.
