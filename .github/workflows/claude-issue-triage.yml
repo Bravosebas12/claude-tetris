@@ -47,6 +47,10 @@ jobs:
                If the issue lacks enough detail to diagnose (e.g. no repro steps), say so plainly and
                list what information is missing instead of guessing.
 
+            Always format any text posted to GitHub (labels aside) using proper GitHub-flavored
+            Markdown — headings/bold for section labels, backticks for file paths and code, and
+            bullet lists — never plain unformatted text.
+
             This is a triage pass only — do not write, edit, or commit any code.
           claude_args: |
             --allowedTools "Bash(gh label list:*),Bash(gh issue edit:*),Bash(gh issue comment:*),Bash(gh issue view:*)"
