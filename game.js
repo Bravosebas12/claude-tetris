@@ -4,16 +4,46 @@ const COLS = 10;
 const ROWS = 20;
 const BLOCK = 30;
 
-const COLORS = [
-  null,
-  '#4dd0e1', // I - cyan
-  '#ffd54f', // O - yellow
-  '#ba68c8', // T - purple
-  '#81c784', // S - green
-  '#e57373', // Z - red
-  '#7986cb', // J - indigo
-  '#ffb74d', // L - orange
-];
+const THEME_STORAGE_KEY = 'tetris-theme';
+
+const THEMES = {
+  dark: {
+    pieceColors: [
+      null,
+      '#4dd0e1', // I - cyan
+      '#ffd54f', // O - yellow
+      '#ba68c8', // T - purple
+      '#81c784', // S - green
+      '#e57373', // Z - red
+      '#90caf9', // J - pale blue
+      '#ffb74d', // L - orange
+      '#f06292', // N - magenta
+    ],
+    gridColor: '#22222e',
+    blockHighlight: 'rgba(255, 255, 255, 0.12)',
+  },
+  light: {
+    // Tonos más saturados/oscuros para contrastar bien sobre el tablero claro.
+    pieceColors: [
+      null,
+      '#0288d1', // I - cyan
+      '#f9a825', // O - yellow
+      '#8e24aa', // T - purple
+      '#2e7d32', // S - green
+      '#d32f2f', // Z - red
+      '#1565c0', // J - blue
+      '#ef6c00', // L - orange
+      '#c2185b', // N - magenta
+    ],
+    gridColor: '#d5d5e2',
+    blockHighlight: 'rgba(0, 0, 0, 0.18)',
+  },
+};
+
+let currentTheme = 'dark';
+let COLORS = THEMES.dark.pieceColors;
+let gridColor = THEMES.dark.gridColor;
+let blockHighlight = THEMES.dark.blockHighlight;
 
 const PIECES = [
   null,
@@ -24,6 +54,7 @@ const PIECES = [
   [[5,5,0],[0,5,5],[0,0,0]],                  // Z
   [[6,0,0],[6,6,6],[0,0,0]],                  // J
   [[0,0,7],[7,7,7],[0,0,0]],                  // L
+  [[8,8,8],[8,0,8],[8,8,8]],                  // N - nut (hueco central)
 ];
 
 const LINE_SCORES = [0, 100, 300, 500, 800];
@@ -39,6 +70,7 @@ const overlay = document.getElementById('overlay');
 const overlayTitle = document.getElementById('overlay-title');
 const overlayScore = document.getElementById('overlay-score');
 const restartBtn = document.getElementById('restart-btn');
+const themeToggle = document.getElementById('theme-toggle');
 
 let board, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId;
 
@@ -47,7 +79,7 @@ function createBoard() {
 }
 
 function randomPiece() {
-  const type = Math.floor(Math.random() * 7) + 1;
+  const type = Math.floor(Math.random() * 8) + 1;
   const shape = PIECES[type].map(row => [...row]);
   return { type, shape, x: Math.floor(COLS / 2) - Math.floor(shape[0].length / 2), y: 0 };
 }
@@ -163,13 +195,13 @@ function drawBlock(context, x, y, colorIndex, size, alpha) {
   context.fillStyle = color;
   context.fillRect(x * size + 1, y * size + 1, size - 2, size - 2);
   // highlight
-  context.fillStyle = 'rgba(255,255,255,0.12)';
+  context.fillStyle = blockHighlight;
   context.fillRect(x * size + 1, y * size + 1, size - 2, 4);
   context.globalAlpha = 1;
 }
 
 function drawGrid() {
-  ctx.strokeStyle = '#22222e';
+  ctx.strokeStyle = gridColor;
   ctx.lineWidth = 0.5;
   for (let c = 1; c < COLS; c++) {
     ctx.beginPath();
@@ -241,6 +273,8 @@ function togglePause() {
 }
 
 function loop(ts) {
+  if (gameOver) return;
+
   const dt = ts - lastTime;
   lastTime = ts;
   dropAccum += dt;
@@ -300,5 +334,62 @@ document.addEventListener('keydown', e => {
 });
 
 restartBtn.addEventListener('click', init);
+
+// Tema claro/oscuro
+function applyTheme(theme) {
+  currentTheme = theme;
+  const t = THEMES[theme];
+  COLORS = t.pieceColors;
+  gridColor = t.gridColor;
+  blockHighlight = t.blockHighlight;
+  document.documentElement.setAttribute('data-theme', theme);
+  localStorage.setItem(THEME_STORAGE_KEY, theme);
+  themeToggle.checked = theme === 'light';
+  if (board) {
+    draw();
+    drawNext();
+  }
+}
+
+themeToggle.addEventListener('change', () => {
+  applyTheme(themeToggle.checked ? 'light' : 'dark');
+});
+
+applyTheme(localStorage.getItem(THEME_STORAGE_KEY) === 'light' ? 'light' : 'dark');
+
+// Weather Modal
+const weatherBtn = document.getElementById('weather-btn');
+const weatherModal = document.getElementById('weather-modal');
+const weatherCloseBtn = document.getElementById('weather-close-btn');
+
+weatherBtn.addEventListener('click', fetchAndShowWeather);
+weatherCloseBtn.addEventListener('click', () => weatherModal.classList.add('hidden'));
+weatherModal.addEventListener('click', (e) => {
+  if (e.target === weatherModal) weatherModal.classList.add('hidden');
+});
+
+async function fetchAndShowWeather() {
+  const LAT = '6.1631';
+  const LON = '-75.4140';
+  const URL = `https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LON}&current=temperature_2m,relative_humidity_2m,apparent_temperature,wind_speed_10m&timezone=auto`;
+
+  try {
+    const res = await fetch(URL);
+    const data = await res.json();
+    const current = data.current;
+
+    document.getElementById('temp').textContent = `${current.temperature_2m}°C`;
+    document.getElementById('apparent').textContent = `${current.apparent_temperature}°C`;
+    document.getElementById('humidity').textContent = `${current.relative_humidity_2m}%`;
+    document.getElementById('wind').textContent = `${current.wind_speed_10m} km/h`;
+    document.getElementById('timezone').textContent = `Zona: ${data.timezone}`;
+    document.getElementById('update-time').textContent = `Actualizado: ${current.time}`;
+
+    weatherModal.classList.remove('hidden');
+  } catch (err) {
+    console.error('Error fetching weather:', err);
+    alert('Error al obtener el clima. Intenta de nuevo.');
+  }
+}
 
 init();
