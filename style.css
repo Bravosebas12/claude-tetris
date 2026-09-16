@@ -4,15 +4,78 @@
   padding: 0;
 }
 
+:root {
+  --color-bg: #0f0f17;
+  --color-text: #e0e0e0;
+  --color-title: #7aa2f7;
+  --color-board-border: #2a2a3a;
+  --color-board-bg: #1a1a25;
+  --color-label: #555570;
+  --color-value: #7aa2f7;
+  --color-controls-text: #888;
+  --color-kbd-bg: #22223a;
+  --color-kbd-border: #3a3a5a;
+  --color-kbd-text: #aaa;
+  --color-overlay-bg: rgba(10, 10, 20, 0.75);
+  --color-overlay-title: #e57373;
+  --color-overlay-score: #7aa2f7;
+  --color-restart-bg: #7aa2f7;
+  --color-restart-text: #0f0f17;
+  --color-restart-hover: #9bbdff;
+  --color-weather-modal-bg: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  --color-weather-border: #667eea;
+  --color-weather-close: #888;
+  --color-weather-close-hover: #e0e0e0;
+  --color-weather-heading: #7aa2f7;
+  --color-weather-location: #888;
+  --color-weather-row-border: #2a2a3a;
+  --color-weather-label: #888;
+  --color-weather-value: #7aa2f7;
+  --color-weather-meta: #666;
+  --color-weather-modal-overlay: rgba(15, 15, 23, 0.85);
+}
+
+:root[data-theme="light"] {
+  --color-bg: #f0f0f5;
+  --color-text: #1a1a25;
+  --color-title: #3b5bdb;
+  --color-board-border: #c7c7d6;
+  --color-board-bg: #ffffff;
+  --color-label: #6b6b85;
+  --color-value: #3b5bdb;
+  --color-controls-text: #555566;
+  --color-kbd-bg: #e4e4ee;
+  --color-kbd-border: #c7c7d6;
+  --color-kbd-text: #444455;
+  --color-overlay-bg: rgba(240, 240, 245, 0.85);
+  --color-overlay-title: #c62828;
+  --color-overlay-score: #3b5bdb;
+  --color-restart-bg: #3b5bdb;
+  --color-restart-text: #ffffff;
+  --color-restart-hover: #5c7ce0;
+  --color-weather-modal-bg: linear-gradient(135deg, #ffffff 0%, #e8ecf7 100%);
+  --color-weather-border: #667eea;
+  --color-weather-close: #777788;
+  --color-weather-close-hover: #1a1a25;
+  --color-weather-heading: #3b5bdb;
+  --color-weather-location: #666677;
+  --color-weather-row-border: #d8d8e6;
+  --color-weather-label: #666677;
+  --color-weather-value: #3b5bdb;
+  --color-weather-meta: #888899;
+  --color-weather-modal-overlay: rgba(240, 240, 245, 0.85);
+}
+
 body {
-  background: #0f0f17;
-  color: #e0e0e0;
+  background: var(--color-bg);
+  color: var(--color-text);
   font-family: system-ui, -apple-system, sans-serif;
   display: flex;
   align-items: center;
   justify-content: center;
   min-height: 100vh;
   user-select: none;
+  transition: background 0.2s ease, color 0.2s ease;
 }
 
 .wrapper {
@@ -24,7 +87,7 @@ body {
   font-size: 32px;
   font-weight: 800;
   letter-spacing: 8px;
-  color: #7aa2f7;
+  color: var(--color-title);
   margin-bottom: 16px;
 }
 
@@ -36,10 +99,11 @@ body {
 
 #board {
   display: block;
-  border: 1px solid #2a2a3a;
-  background: #1a1a25;
+  border: 1px solid var(--color-board-border);
+  background: var(--color-board-bg);
   border-radius: 4px;
   box-shadow: 0 0 40px rgba(0, 0, 0, 0.6);
+  transition: background 0.2s ease, border-color 0.2s ease;
 }
 
 /* ---- Panel lateral ---- */
@@ -60,7 +124,7 @@ body {
 .label {
   font-size: 10px;
   letter-spacing: 2px;
-  color: #555570;
+  color: var(--color-label);
   font-weight: 600;
 }
 
@@ -68,15 +132,67 @@ body {
   font-family: 'Courier New', Courier, monospace;
   font-size: 26px;
   font-weight: 700;
-  color: #7aa2f7;
+  color: var(--color-value);
   letter-spacing: 1px;
 }
 
 #next-canvas {
   display: block;
-  border: 1px solid #2a2a3a;
-  background: #1a1a25;
+  border: 1px solid var(--color-board-border);
+  background: var(--color-board-bg);
   border-radius: 4px;
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+/* ---- Toggle de tema ---- */
+.theme-switch {
+  position: relative;
+  display: inline-block;
+  width: 52px;
+  height: 26px;
+  cursor: pointer;
+}
+
+.theme-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.theme-slider {
+  position: absolute;
+  inset: 0;
+  background: var(--color-kbd-bg);
+  border: 1px solid var(--color-board-border);
+  border-radius: 999px;
+  transition: background 0.2s ease, border-color 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 5px;
+  font-size: 12px;
+}
+
+.theme-slider::before {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 20px;
+  height: 20px;
+  background: var(--color-value);
+  border-radius: 50%;
+  transition: transform 0.2s ease, background 0.2s ease;
+}
+
+.theme-switch input:checked + .theme-slider::before {
+  transform: translateX(26px);
+}
+
+.theme-icon {
+  position: relative;
+  z-index: 0;
+  line-height: 1;
 }
 
 /* ---- Controles ---- */
@@ -89,20 +205,20 @@ body {
 
 .controls li {
   font-size: 12px;
-  color: #888;
+  color: var(--color-controls-text);
   display: flex;
   align-items: center;
   gap: 4px;
 }
 
 kbd {
-  background: #22223a;
-  border: 1px solid #3a3a5a;
+  background: var(--color-kbd-bg);
+  border: 1px solid var(--color-kbd-border);
   border-radius: 3px;
   padding: 1px 6px;
   font-size: 11px;
   font-family: inherit;
-  color: #aaa;
+  color: var(--color-kbd-text);
 }
 
 /* ---- Overlay ---- */
@@ -112,7 +228,7 @@ kbd {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(10, 10, 20, 0.75);
+  background: var(--color-overlay-bg);
   backdrop-filter: blur(4px);
   border-radius: 4px;
 }
@@ -133,19 +249,19 @@ kbd {
   font-size: 28px;
   font-weight: 800;
   letter-spacing: 4px;
-  color: #e57373;
+  color: var(--color-overlay-title);
 }
 
 #overlay-score {
   font-family: 'Courier New', Courier, monospace;
   font-size: 14px;
-  color: #7aa2f7;
+  color: var(--color-overlay-score);
 }
 
 #restart-btn {
   margin-top: 8px;
-  background: #7aa2f7;
-  color: #0f0f17;
+  background: var(--color-restart-bg);
+  color: var(--color-restart-text);
   border: none;
   border-radius: 6px;
   padding: 10px 28px;
@@ -157,7 +273,7 @@ kbd {
 }
 
 #restart-btn:hover {
-  background: #9bbdff;
+  background: var(--color-restart-hover);
 }
 
 /* ---- Botón Clima ---- */
@@ -191,7 +307,7 @@ kbd {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(15, 15, 23, 0.85);
+  background: var(--color-weather-modal-overlay);
   backdrop-filter: blur(4px);
   z-index: 1000;
 }
@@ -201,8 +317,8 @@ kbd {
 }
 
 .weather-modal-content {
-  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-  border: 1px solid #667eea;
+  background: var(--color-weather-modal-bg);
+  border: 1px solid var(--color-weather-border);
   border-radius: 12px;
   padding: 30px;
   max-width: 500px;
@@ -217,14 +333,14 @@ kbd {
   right: 12px;
   background: none;
   border: none;
-  color: #888;
+  color: var(--color-weather-close);
   font-size: 24px;
   cursor: pointer;
   transition: color 0.2s;
 }
 
 .weather-close-btn:hover {
-  color: #e0e0e0;
+  color: var(--color-weather-close-hover);
 }
 
 .weather-icon {
@@ -235,7 +351,7 @@ kbd {
 
 .weather-modal-content h2 {
   font-size: 26px;
-  color: #7aa2f7;
+  color: var(--color-weather-heading);
   text-align: center;
   margin-bottom: 4px;
   letter-spacing: 1px;
@@ -243,7 +359,7 @@ kbd {
 
 .weather-location {
   text-align: center;
-  color: #888;
+  color: var(--color-weather-location);
   font-size: 12px;
   margin-bottom: 24px;
 }
@@ -255,7 +371,7 @@ kbd {
 }
 
 .weather-table tbody tr {
-  border-bottom: 1px solid #2a2a3a;
+  border-bottom: 1px solid var(--color-weather-row-border);
 }
 
 .weather-table tbody tr:last-child {
@@ -264,7 +380,7 @@ kbd {
 
 .weather-label {
   padding: 12px 0;
-  color: #888;
+  color: var(--color-weather-label);
   font-size: 12px;
   font-weight: 600;
   letter-spacing: 1px;
@@ -273,7 +389,7 @@ kbd {
 .weather-value {
   padding: 12px 0;
   text-align: right;
-  color: #7aa2f7;
+  color: var(--color-weather-value);
   font-size: 16px;
   font-weight: 700;
   font-family: 'Courier New', Courier, monospace;
@@ -281,7 +397,7 @@ kbd {
 
 .weather-meta {
   text-align: center;
-  color: #666;
+  color: var(--color-weather-meta);
   font-size: 11px;
   line-height: 1.6;
 }

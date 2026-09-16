@@ -4,16 +4,44 @@ const COLS = 10;
 const ROWS = 20;
 const BLOCK = 30;
 
-const COLORS = [
-  null,
-  '#4dd0e1', // I - cyan
-  '#ffd54f', // O - yellow
-  '#ba68c8', // T - purple
-  '#81c784', // S - green
-  '#e57373', // Z - red
-  '#90caf9', // J - pale blue
-  '#ffb74d', // L - orange
-];
+const THEME_STORAGE_KEY = 'tetris-theme';
+
+const THEMES = {
+  dark: {
+    pieceColors: [
+      null,
+      '#4dd0e1', // I - cyan
+      '#ffd54f', // O - yellow
+      '#ba68c8', // T - purple
+      '#81c784', // S - green
+      '#e57373', // Z - red
+      '#90caf9', // J - pale blue
+      '#ffb74d', // L - orange
+    ],
+    gridColor: '#22222e',
+    blockHighlight: 'rgba(255, 255, 255, 0.12)',
+  },
+  light: {
+    // Tonos más saturados/oscuros para contrastar bien sobre el tablero claro.
+    pieceColors: [
+      null,
+      '#0288d1', // I - cyan
+      '#f9a825', // O - yellow
+      '#8e24aa', // T - purple
+      '#2e7d32', // S - green
+      '#d32f2f', // Z - red
+      '#1565c0', // J - blue
+      '#ef6c00', // L - orange
+    ],
+    gridColor: '#d5d5e2',
+    blockHighlight: 'rgba(0, 0, 0, 0.18)',
+  },
+};
+
+let currentTheme = 'dark';
+let COLORS = THEMES.dark.pieceColors;
+let gridColor = THEMES.dark.gridColor;
+let blockHighlight = THEMES.dark.blockHighlight;
 
 const PIECES = [
   null,
@@ -39,6 +67,7 @@ const overlay = document.getElementById('overlay');
 const overlayTitle = document.getElementById('overlay-title');
 const overlayScore = document.getElementById('overlay-score');
 const restartBtn = document.getElementById('restart-btn');
+const themeToggle = document.getElementById('theme-toggle');
 
 let board, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId;
 
@@ -163,13 +192,13 @@ function drawBlock(context, x, y, colorIndex, size, alpha) {
   context.fillStyle = color;
   context.fillRect(x * size + 1, y * size + 1, size - 2, size - 2);
   // highlight
-  context.fillStyle = 'rgba(255,255,255,0.12)';
+  context.fillStyle = blockHighlight;
   context.fillRect(x * size + 1, y * size + 1, size - 2, 4);
   context.globalAlpha = 1;
 }
 
 function drawGrid() {
-  ctx.strokeStyle = '#22222e';
+  ctx.strokeStyle = gridColor;
   ctx.lineWidth = 0.5;
   for (let c = 1; c < COLS; c++) {
     ctx.beginPath();
@@ -300,6 +329,28 @@ document.addEventListener('keydown', e => {
 });
 
 restartBtn.addEventListener('click', init);
+
+// Tema claro/oscuro
+function applyTheme(theme) {
+  currentTheme = theme;
+  const t = THEMES[theme];
+  COLORS = t.pieceColors;
+  gridColor = t.gridColor;
+  blockHighlight = t.blockHighlight;
+  document.documentElement.setAttribute('data-theme', theme);
+  localStorage.setItem(THEME_STORAGE_KEY, theme);
+  themeToggle.checked = theme === 'light';
+  if (board) {
+    draw();
+    drawNext();
+  }
+}
+
+themeToggle.addEventListener('change', () => {
+  applyTheme(themeToggle.checked ? 'light' : 'dark');
+});
+
+applyTheme(localStorage.getItem(THEME_STORAGE_KEY) === 'light' ? 'light' : 'dark');
 
 // Weather Modal
 const weatherBtn = document.getElementById('weather-btn');
