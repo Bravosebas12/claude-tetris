@@ -1,0 +1,52 @@
+name: Claude Issue Triage
+
+on:
+  issues:
+    types: [opened, edited]
+
+jobs:
+  triage:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      id-token: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Triage issue with Claude
+        id: claude-triage
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: |
+            A GitHub issue was just opened or edited in ${{ github.repository }}: issue #${{ github.event.issue.number }}.
+
+            Triage it:
+
+            1. Run `gh label list` to see which labels exist in this repository.
+            2. Read the issue title and body. Explore the codebase as needed (game logic, rendering,
+               input handling, UI, build/tooling, docs, etc.) to understand what it relates to.
+            3. Apply the labels that fit by running:
+               `gh issue edit ${{ github.event.issue.number }} --add-label "label-one,label-two"`
+               Only use labels that already exist in the repo (from step 1) — never invent new ones.
+               Don't remove existing labels on the issue unless they're clearly wrong.
+            4. Post one analysis comment with:
+               `gh issue comment ${{ github.event.issue.number }} --body "..."`
+               The comment should contain, as concise markdown:
+               - **Diagnosis**: the likely root cause (for a bug) or a clear restatement of the ask
+                 (for a feature/question).
+               - **Likely affected areas**: specific files/paths in this repo you found while
+                 investigating, if any.
+               - **Suggested approach**: a short outline of how a fix or implementation could proceed,
+                 to save time for whoever (human or Claude) picks this up next.
+               If the issue lacks enough detail to diagnose (e.g. no repro steps), say so plainly and
+               list what information is missing instead of guessing.
+
+            This is a triage pass only — do not write, edit, or commit any code.
+          claude_args: |
+            --allowedTools "Bash(gh label list:*),Bash(gh issue edit:*),Bash(gh issue comment:*),Bash(gh issue view:*)"
