@@ -16,6 +16,7 @@ const COLORS = [
   '#f4511e', // bomb - deep orange
   '#ffeb3b', // lightning - electric yellow
   '#26a69a', // gravity - teal
+  '#b3e5fc', // freeze - ice blue
 ];
 
 const PIECES = [
@@ -30,6 +31,7 @@ const PIECES = [
   [[8]],                                       // bomb
   [[9]],                                       // lightning
   [[10]],                                      // gravity
+  [[11]],                                      // freeze
 ];
 
 const LINE_SCORES = [0, 100, 300, 500, 800];
@@ -40,6 +42,9 @@ const LIGHTNING_CHANCE = 0.03;
 const GRAVITY_TYPE = 10;
 const GRAVITY_CHANCE = 0.03;
 const FALL_DURATION = 900;
+const FREEZE_TYPE = 11;
+const FREEZE_CHANCE = 0.03;
+const FREEZE_DURATION = 5000;
 
 const canvas = document.getElementById('board');
 const ctx = canvas.getContext('2d');
@@ -54,7 +59,7 @@ const overlayScore = document.getElementById('overlay-score');
 const restartBtn = document.getElementById('restart-btn');
 const themeToggleBtn = document.getElementById('theme-toggle');
 
-let board, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId, explosionFlash, fallAnimation, animating;
+let board, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId, explosionFlash, fallAnimation, animating, freezeUntil;
 
 const THEME_KEY = 'tetris-theme';
 
@@ -91,6 +96,8 @@ function randomPiece() {
     type = LIGHTNING_TYPE;
   } else if (roll < BOMB_CHANCE + LIGHTNING_CHANCE + GRAVITY_CHANCE) {
     type = GRAVITY_TYPE;
+  } else if (roll < BOMB_CHANCE + LIGHTNING_CHANCE + GRAVITY_CHANCE + FREEZE_CHANCE) {
+    type = FREEZE_TYPE;
   } else {
     type = Math.floor(Math.random() * 7) + 1;
   }
@@ -244,6 +251,9 @@ function lockPiece() {
     finishLock();
   } else if (current.type === GRAVITY_TYPE) {
     startCompaction();
+  } else if (current.type === FREEZE_TYPE) {
+    freezeUntil = performance.now() + FREEZE_DURATION;
+    finishLock();
   } else {
     merge();
     finishLock();
@@ -309,6 +319,19 @@ function drawBlock(context, x, y, colorIndex, size, alpha) {
     context.lineTo(bx + size * 0.5, by + size * 0.85);
     context.closePath();
     context.fill();
+  } else if (colorIndex === FREEZE_TYPE) {
+    const cx = x * size + size / 2;
+    const cy = y * size + size / 2;
+    const r = size / 2 - 4;
+    context.strokeStyle = color;
+    context.lineWidth = 2;
+    for (let i = 0; i < 3; i++) {
+      const angle = (Math.PI / 3) * i;
+      context.beginPath();
+      context.moveTo(cx - Math.cos(angle) * r, cy - Math.sin(angle) * r);
+      context.lineTo(cx + Math.cos(angle) * r, cy + Math.sin(angle) * r);
+      context.stroke();
+    }
   } else {
     context.fillStyle = color;
     context.fillRect(x * size + 1, y * size + 1, size - 2, size - 2);
@@ -366,6 +389,18 @@ function draw() {
     for (let r = 0; r < current.shape.length; r++)
       for (let c = 0; c < current.shape[r].length; c++)
         drawBlock(ctx, current.x + c, current.y + r, current.shape[r][c], BLOCK);
+  }
+
+  // freeze tint
+  if (performance.now() < freezeUntil) {
+    ctx.fillStyle = 'rgba(179,229,252,0.12)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    const secsLeft = Math.ceil((freezeUntil - performance.now()) / 1000);
+    ctx.fillStyle = '#e1f5fe';
+    ctx.font = 'bold 16px sans-serif';
+    ctx.textAlign = 'right';
+    ctx.fillText(`❄ ${secsLeft}s`, canvas.width - 8, 20);
+    ctx.textAlign = 'left';
   }
 
   // explosion flash
@@ -431,6 +466,8 @@ function loop(ts) {
       animating = false;
       finishLock();
     }
+  } else if (ts < freezeUntil) {
+    // frozen: skip automatic drop, but manual controls still work
   } else {
     dropAccum += dt;
     if (dropAccum >= dropInterval) {
@@ -459,6 +496,7 @@ function init() {
   explosionFlash = null;
   fallAnimation = null;
   animating = false;
+  freezeUntil = 0;
   lastTime = performance.now();
   next = randomPiece();
   spawn();
