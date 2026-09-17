@@ -36,6 +36,8 @@ jobs:
             4. Post a comment on the issue (`gh issue comment ${{ github.event.issue.number }}`) with a
                general diagnosis: a short summary of the problem, the likely root cause, which
                functions/files are relevant, and a suggested approach — do NOT implement the fix, this
-               is only to prepare the ground for implementing the solution later.
+               is only to prepare the ground for implementing the solution later. The comment body must
+               be written in GitHub-flavored Markdown (headings, lists, and `code` spans/blocks for
+               file, function, and variable names) so it renders correctly on GitHub.
 
           claude_args: '--allowedTools "Bash(gh issue *),Bash(gh label *)"'
