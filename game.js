@@ -15,6 +15,7 @@ const COLORS = [
   '#ffb74d', // L - orange
   '#f4511e', // bomb - deep orange
   '#ffeb3b', // lightning - electric yellow
+  '#26a69a', // gravity - teal
 ];
 
 const PIECES = [
@@ -28,13 +29,17 @@ const PIECES = [
   [[0,0,7],[7,7,7],[0,0,0]],                  // L
   [[8]],                                       // bomb
   [[9]],                                       // lightning
+  [[10]],                                      // gravity
 ];
 
 const LINE_SCORES = [0, 100, 300, 500, 800];
 const BOMB_TYPE = 8;
 const BOMB_CHANCE = 0.05;
 const LIGHTNING_TYPE = 9;
-const LIGHTNING_CHANCE = 0.2;
+const LIGHTNING_CHANCE = 0.03;
+const GRAVITY_TYPE = 10;
+const GRAVITY_CHANCE = 0.03;
+const FALL_DURATION = 900;
 
 const canvas = document.getElementById('board');
 const ctx = canvas.getContext('2d');
@@ -49,7 +54,7 @@ const overlayScore = document.getElementById('overlay-score');
 const restartBtn = document.getElementById('restart-btn');
 const themeToggleBtn = document.getElementById('theme-toggle');
 
-let board, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId, explosionFlash;
+let board, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId, explosionFlash, fallAnimation, animating;
 
 const THEME_KEY = 'tetris-theme';
 
@@ -84,6 +89,8 @@ function randomPiece() {
     type = BOMB_TYPE;
   } else if (roll < BOMB_CHANCE + LIGHTNING_CHANCE) {
     type = LIGHTNING_TYPE;
+  } else if (roll < BOMB_CHANCE + LIGHTNING_CHANCE + GRAVITY_CHANCE) {
+    type = GRAVITY_TYPE;
   } else {
     type = Math.floor(Math.random() * 7) + 1;
   }
@@ -152,6 +159,35 @@ function strikeRow(y) {
   updateHUD();
 }
 
+function computeCompactMoves() {
+  const newBoard = createBoard();
+  const moves = [];
+  for (let c = 0; c < COLS; c++) {
+    const filled = [];
+    for (let r = 0; r < ROWS; r++) {
+      if (board[r][c] !== 0) filled.push({ from: r, color: board[r][c] });
+    }
+    const startRow = ROWS - filled.length;
+    filled.forEach((f, i) => {
+      const to = startRow + i;
+      newBoard[to][c] = f.color;
+      if (f.from !== to) moves.push({ col: c, from: f.from, to, color: f.color });
+    });
+  }
+  return { moves, newBoard };
+}
+
+function startCompaction() {
+  const { moves, newBoard } = computeCompactMoves();
+  if (!moves.length) {
+    finishLock();
+    return;
+  }
+  moves.forEach(m => { board[m.from][m.col] = 0; });
+  fallAnimation = { moves, newBoard, start: performance.now() };
+  animating = true;
+}
+
 function clearLines() {
   let cleared = 0;
   for (let r = ROWS - 1; r >= 0; r--) {
@@ -194,16 +230,24 @@ function softDrop() {
   }
 }
 
+function finishLock() {
+  clearLines();
+  spawn();
+}
+
 function lockPiece() {
   if (current.type === BOMB_TYPE) {
     explode(current.x, current.y);
+    finishLock();
   } else if (current.type === LIGHTNING_TYPE) {
     strikeRow(current.y);
+    finishLock();
+  } else if (current.type === GRAVITY_TYPE) {
+    startCompaction();
   } else {
     merge();
+    finishLock();
   }
-  clearLines();
-  spawn();
 }
 
 function spawn() {
@@ -252,6 +296,19 @@ function drawBlock(context, x, y, colorIndex, size, alpha) {
     });
     context.closePath();
     context.fill();
+  } else if (colorIndex === GRAVITY_TYPE) {
+    const bx = x * size;
+    const by = y * size;
+    context.fillStyle = color;
+    // stem
+    context.fillRect(bx + size * 0.4, by + size * 0.12, size * 0.2, size * 0.4);
+    // arrowhead
+    context.beginPath();
+    context.moveTo(bx + size * 0.2, by + size * 0.5);
+    context.lineTo(bx + size * 0.8, by + size * 0.5);
+    context.lineTo(bx + size * 0.5, by + size * 0.85);
+    context.closePath();
+    context.fill();
   } else {
     context.fillStyle = color;
     context.fillRect(x * size + 1, y * size + 1, size - 2, size - 2);
@@ -289,17 +346,27 @@ function draw() {
     for (let c = 0; c < COLS; c++)
       drawBlock(ctx, c, r, board[r][c], BLOCK);
 
-  // ghost
-  const gy = ghostY();
-  for (let r = 0; r < current.shape.length; r++)
-    for (let c = 0; c < current.shape[r].length; c++)
-      if (current.shape[r][c])
-        drawBlock(ctx, current.x + c, gy + r, current.shape[r][c], BLOCK, 0.2);
+  if (animating) {
+    // falling blocks settling into place
+    const t = Math.min(1, (performance.now() - fallAnimation.start) / FALL_DURATION);
+    const eased = t * t;
+    for (const m of fallAnimation.moves) {
+      const y = m.from + (m.to - m.from) * eased;
+      drawBlock(ctx, m.col, y, m.color, BLOCK);
+    }
+  } else {
+    // ghost
+    const gy = ghostY();
+    for (let r = 0; r < current.shape.length; r++)
+      for (let c = 0; c < current.shape[r].length; c++)
+        if (current.shape[r][c])
+          drawBlock(ctx, current.x + c, gy + r, current.shape[r][c], BLOCK, 0.2);
 
-  // current piece
-  for (let r = 0; r < current.shape.length; r++)
-    for (let c = 0; c < current.shape[r].length; c++)
-      drawBlock(ctx, current.x + c, current.y + r, current.shape[r][c], BLOCK);
+    // current piece
+    for (let r = 0; r < current.shape.length; r++)
+      for (let c = 0; c < current.shape[r].length; c++)
+        drawBlock(ctx, current.x + c, current.y + r, current.shape[r][c], BLOCK);
+  }
 
   // explosion flash
   if (explosionFlash) {
@@ -357,13 +424,22 @@ function togglePause() {
 function loop(ts) {
   const dt = ts - lastTime;
   lastTime = ts;
-  dropAccum += dt;
-  if (dropAccum >= dropInterval) {
-    dropAccum = 0;
-    if (!collide(current.shape, current.x, current.y + 1)) {
-      current.y++;
-    } else {
-      lockPiece();
+  if (animating) {
+    if (ts - fallAnimation.start >= FALL_DURATION) {
+      board = fallAnimation.newBoard;
+      fallAnimation = null;
+      animating = false;
+      finishLock();
+    }
+  } else {
+    dropAccum += dt;
+    if (dropAccum >= dropInterval) {
+      dropAccum = 0;
+      if (!collide(current.shape, current.x, current.y + 1)) {
+        current.y++;
+      } else {
+        lockPiece();
+      }
     }
   }
   if (gameOver) return;
@@ -381,6 +457,8 @@ function init() {
   dropInterval = 1000;
   dropAccum = 0;
   explosionFlash = null;
+  fallAnimation = null;
+  animating = false;
   lastTime = performance.now();
   next = randomPiece();
   spawn();
@@ -392,7 +470,7 @@ function init() {
 
 document.addEventListener('keydown', e => {
   if (e.code === 'KeyP') { togglePause(); return; }
-  if (paused || gameOver) return;
+  if (paused || gameOver || animating) return;
   switch (e.code) {
     case 'ArrowLeft':
       if (!collide(current.shape, current.x - 1, current.y)) current.x--;
