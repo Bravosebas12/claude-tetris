@@ -14,6 +14,7 @@ const COLORS = [
   '#64b5f6', // J - blue
   '#ffb74d', // L - orange
   '#f4511e', // bomb - deep orange
+  '#ffeb3b', // lightning - electric yellow
 ];
 
 const PIECES = [
@@ -26,11 +27,14 @@ const PIECES = [
   [[6,0,0],[6,6,6],[0,0,0]],                  // J
   [[0,0,7],[7,7,7],[0,0,0]],                  // L
   [[8]],                                       // bomb
+  [[9]],                                       // lightning
 ];
 
 const LINE_SCORES = [0, 100, 300, 500, 800];
 const BOMB_TYPE = 8;
 const BOMB_CHANCE = 0.05;
+const LIGHTNING_TYPE = 9;
+const LIGHTNING_CHANCE = 0.2;
 
 const canvas = document.getElementById('board');
 const ctx = canvas.getContext('2d');
@@ -74,7 +78,15 @@ function createBoard() {
 }
 
 function randomPiece() {
-  const type = Math.random() < BOMB_CHANCE ? BOMB_TYPE : Math.floor(Math.random() * 7) + 1;
+  const roll = Math.random();
+  let type;
+  if (roll < BOMB_CHANCE) {
+    type = BOMB_TYPE;
+  } else if (roll < BOMB_CHANCE + LIGHTNING_CHANCE) {
+    type = LIGHTNING_TYPE;
+  } else {
+    type = Math.floor(Math.random() * 7) + 1;
+  }
   const shape = PIECES[type].map(row => [...row]);
   return { type, shape, x: Math.floor(COLS / 2) - Math.floor(shape[0].length / 2), y: 0 };
 }
@@ -130,6 +142,16 @@ function explode(cx, cy) {
   explosionFlash = { cx, cy, start: performance.now() };
 }
 
+function strikeRow(y) {
+  board.splice(y, 1);
+  board.unshift(new Array(COLS).fill(0));
+  lines += 1;
+  score += (LINE_SCORES[1] || 0) * level;
+  level = Math.floor(lines / 10) + 1;
+  dropInterval = Math.max(100, 1000 - (level - 1) * 90);
+  updateHUD();
+}
+
 function clearLines() {
   let cleared = 0;
   for (let r = ROWS - 1; r >= 0; r--) {
@@ -175,6 +197,8 @@ function softDrop() {
 function lockPiece() {
   if (current.type === BOMB_TYPE) {
     explode(current.x, current.y);
+  } else if (current.type === LIGHTNING_TYPE) {
+    strikeRow(current.y);
   } else {
     merge();
   }
@@ -211,6 +235,22 @@ function drawBlock(context, x, y, colorIndex, size, alpha) {
     context.fillStyle = 'rgba(255,255,255,0.7)';
     context.beginPath();
     context.arc(cx, cy, size / 8, 0, Math.PI * 2);
+    context.fill();
+  } else if (colorIndex === LIGHTNING_TYPE) {
+    const bx = x * size;
+    const by = y * size;
+    const pts = [
+      [0.58, 0.02], [0.22, 0.56], [0.46, 0.56],
+      [0.30, 0.98], [0.82, 0.40], [0.52, 0.40],
+    ];
+    context.fillStyle = color;
+    context.beginPath();
+    pts.forEach(([px, py], i) => {
+      const px2 = bx + px * size;
+      const py2 = by + py * size;
+      if (i === 0) context.moveTo(px2, py2); else context.lineTo(px2, py2);
+    });
+    context.closePath();
     context.fill();
   } else {
     context.fillStyle = color;
