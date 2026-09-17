@@ -1,0 +1,41 @@
+name: Claude Issue Triage
+
+on:
+  issues:
+    types: [opened, edited]
+
+jobs:
+  triage:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      id-token: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Run Claude Issue Triage
+        id: claude-triage
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+
+          prompt: |
+            You are triaging GitHub issue #${{ github.event.issue.number }} in this repository.
+
+            1. Read the issue title and body (use `gh issue view ${{ github.event.issue.number }}`).
+            2. Review the relevant source files (`game.js`, `index.html`, `style.css`) and `CLAUDE.md`
+               to understand which part of the architecture the issue likely touches.
+            3. Assign appropriate labels to the issue based on its content (e.g. type such as
+               bug/enhancement/question, and area such as rendering, input, scoring, collision, etc.).
+               Create a label with `gh label create` if a fitting one doesn't exist yet, then apply it
+               with `gh issue edit ${{ github.event.issue.number }} --add-label "<label>"`.
+            4. Post a comment on the issue (`gh issue comment ${{ github.event.issue.number }}`) with a
+               general diagnosis: a short summary of the problem, the likely root cause, which
+               functions/files are relevant, and a suggested approach — do NOT implement the fix, this
+               is only to prepare the ground for implementing the solution later.
+
+          claude_args: '--allowedTools "Bash(gh issue *),Bash(gh label *)"'
