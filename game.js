@@ -180,8 +180,10 @@ const toggleControlsBtn = document.getElementById('toggle-controls-btn');
 const pauseControlsList = document.getElementById('pause-controls-list');
 const startLevelSelect = document.getElementById('start-level-select');
 
+
 let board, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId, theme;
 let powerupCounter, pendingPowerup, freezeUntil, powerupBannerTimeout;
+let bestCombo;
 // Se inicializa de forma síncrona (no solo vía initSkin()) para que la primera
 // pieza dibujada por init() ya use la skin persistida, sin depender del orden
 // de las llamadas de arranque al final del archivo.
@@ -295,6 +297,7 @@ function registerClearedLines(count, scoreGain) {
     powerupCounter -= POWERUP_LINE_INTERVAL;
     pendingPowerup = true;
   }
+  bestCombo = Math.max(bestCombo, count);
   updateHUD();
 }
 
@@ -537,12 +540,93 @@ function drawNext() {
       drawBlock(nextCtx, offX + c, offY + r, shape[r][c], NB);
 }
 
+function loadLeaderboard() {
+  try {
+    const raw = localStorage.getItem(LEADERBOARD_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+function saveLeaderboard(entries) {
+  entries.sort((a, b) => b.score - a.score);
+  const truncated = entries.slice(0, LEADERBOARD_MAX);
+  try {
+    localStorage.setItem(LEADERBOARD_KEY, JSON.stringify(truncated));
+  } catch (e) {
+    // Storage unavailable/full (private browsing, quota, blocked, etc.) — keep going
+    // so the caller's UI update still runs instead of leaving the overlay stuck.
+  }
+  return truncated;
+}
+
+function isNewRecord(candidateScore) {
+  const entries = loadLeaderboard();
+  if (entries.length < LEADERBOARD_MAX) return true;
+  return candidateScore > entries[entries.length - 1].score;
+}
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+function renderLeaderboard() {
+  const entries = loadLeaderboard();
+  if (entries.length === 0) {
+    leaderboardListEl.innerHTML = '<li class="leaderboard-empty">Sin puntuaciones todavía</li>';
+    return;
+  }
+  leaderboardListEl.innerHTML = entries.map((e, i) => `
+    <li>
+      <span class="leaderboard-rank">${i + 1}</span>
+      <span class="leaderboard-name">${escapeHtml(e.name)}</span>
+      <span class="leaderboard-score">${e.score.toLocaleString()}</span>
+      <span class="leaderboard-meta">${e.lines} líneas · combo x${e.combo}</span>
+    </li>
+  `).join('');
+}
+
+function saveScoreToLeaderboard() {
+  const rawName = playerNameInput.value.trim();
+  const name = rawName || '???';
+  const entries = loadLeaderboard();
+  entries.push({ name, score, lines, combo: bestCombo });
+  saveLeaderboard(entries);
+  renderLeaderboard();
+  overlayRecordEl.classList.add('hidden');
+  overlaySaveEl.classList.add('hidden');
+  overlaySavedMsg.classList.remove('hidden');
+}
+
+function resetLeaderboard() {
+  if (!confirm('¿Seguro que quieres borrar todos los récords?')) return;
+  try {
+    localStorage.removeItem(LEADERBOARD_KEY);
+  } catch (e) {
+    // Storage unavailable — nothing to clear, still refresh the (already empty) view below.
+  }
+  renderLeaderboard();
+}
+
 function endGame() {
   gameOver = true;
   cancelAnimationFrame(animId);
   overlayTitle.textContent = 'GAME OVER';
   overlayScore.textContent = `Puntuación: ${score.toLocaleString()}`;
   overlay.classList.remove('hidden');
+  overlaySavedMsg.classList.add('hidden');
+  playerNameInput.value = '';
+  if (isNewRecord(score)) {
+    overlayRecordEl.classList.remove('hidden');
+    overlaySaveEl.classList.remove('hidden');
+  } else {
+    overlayRecordEl.classList.add('hidden');
+    overlaySaveEl.classList.add('hidden');
+  }
 }
 
 function togglePause() {
@@ -606,6 +690,10 @@ function init(startLevel) {
   overlay.classList.add('hidden');
   cancelAnimationFrame(animId);
   animId = requestAnimationFrame(loop);
+  bestCombo = 0;
+  overlayRecordEl.classList.add('hidden');
+  overlaySaveEl.classList.add('hidden');
+  overlaySavedMsg.classList.add('hidden');
 }
 
 function renderPowerupLegend() {
@@ -647,6 +735,8 @@ document.addEventListener('keydown', e => {
 
 restartBtn.addEventListener('click', init);
 themeToggle.addEventListener('change', () => applyTheme(themeToggle.checked ? 'light' : 'dark'));
+saveScoreBtn.addEventListener('click', saveScoreToLeaderboard);
+resetLeaderboardBtn.addEventListener('click', resetLeaderboard);
 if (skinSelect) skinSelect.addEventListener('change', () => applySkin(skinSelect.value));
 resumeBtn.addEventListener('click', togglePause);
 pauseRestartBtn.addEventListener('click', () => {
@@ -669,5 +759,6 @@ function initStartLevelSelect() {
 initTheme();
 renderPowerupLegend();
 init();
+renderLeaderboard();
 initSkin();
 initStartLevelSelect();
