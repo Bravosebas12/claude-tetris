@@ -179,16 +179,7 @@ const pauseRestartBtn = document.getElementById('pause-restart-btn');
 const toggleControlsBtn = document.getElementById('toggle-controls-btn');
 const pauseControlsList = document.getElementById('pause-controls-list');
 const startLevelSelect = document.getElementById('start-level-select');
-const leaderboardListEl = document.getElementById('leaderboard-list');
-const resetLeaderboardBtn = document.getElementById('reset-leaderboard-btn');
-const overlayRecordEl = document.getElementById('overlay-record');
-const overlaySaveEl = document.getElementById('overlay-save');
-const playerNameInput = document.getElementById('player-name-input');
-const saveScoreBtn = document.getElementById('save-score-btn');
-const overlaySavedMsg = document.getElementById('overlay-saved-msg');
 
-const LEADERBOARD_KEY = 'tetris-leaderboard';
-const LEADERBOARD_MAX = 5;
 
 let board, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId, theme;
 let powerupCounter, pendingPowerup, freezeUntil, powerupBannerTimeout;
