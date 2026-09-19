@@ -100,9 +100,20 @@ const restartBtn = document.getElementById('restart-btn');
 const themeToggle = document.getElementById('theme-toggle');
 const powerupBanner = document.getElementById('powerup-banner');
 const powerupLegendEl = document.getElementById('powerup-legend');
+const leaderboardListEl = document.getElementById('leaderboard-list');
+const resetLeaderboardBtn = document.getElementById('reset-leaderboard-btn');
+const overlayRecordEl = document.getElementById('overlay-record');
+const overlaySaveEl = document.getElementById('overlay-save');
+const playerNameInput = document.getElementById('player-name-input');
+const saveScoreBtn = document.getElementById('save-score-btn');
+const overlaySavedMsg = document.getElementById('overlay-saved-msg');
+
+const LEADERBOARD_KEY = 'tetris-leaderboard';
+const LEADERBOARD_MAX = 5;
 
 let board, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId, theme;
 let powerupCounter, pendingPowerup, freezeUntil, powerupBannerTimeout;
+let bestCombo;
 
 function applyTheme(t) {
   theme = t;
@@ -194,6 +205,7 @@ function registerClearedLines(count, scoreGain) {
     powerupCounter -= POWERUP_LINE_INTERVAL;
     pendingPowerup = true;
   }
+  bestCombo = Math.max(bestCombo, count);
   updateHUD();
 }
 
@@ -439,12 +451,84 @@ function drawNext() {
       drawBlock(nextCtx, offX + c, offY + r, shape[r][c], NB);
 }
 
+function loadLeaderboard() {
+  try {
+    const raw = localStorage.getItem(LEADERBOARD_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+function saveLeaderboard(entries) {
+  entries.sort((a, b) => b.score - a.score);
+  const truncated = entries.slice(0, LEADERBOARD_MAX);
+  localStorage.setItem(LEADERBOARD_KEY, JSON.stringify(truncated));
+  return truncated;
+}
+
+function isNewRecord(candidateScore) {
+  const entries = loadLeaderboard();
+  if (entries.length < LEADERBOARD_MAX) return true;
+  return candidateScore > entries[entries.length - 1].score;
+}
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+function renderLeaderboard() {
+  const entries = loadLeaderboard();
+  if (entries.length === 0) {
+    leaderboardListEl.innerHTML = '<li class="leaderboard-empty">Sin puntuaciones todavía</li>';
+    return;
+  }
+  leaderboardListEl.innerHTML = entries.map((e, i) => `
+    <li>
+      <span class="leaderboard-rank">${i + 1}</span>
+      <span class="leaderboard-name">${escapeHtml(e.name)}</span>
+      <span class="leaderboard-score">${e.score.toLocaleString()}</span>
+      <span class="leaderboard-meta">${e.lines} líneas · combo x${e.combo}</span>
+    </li>
+  `).join('');
+}
+
+function saveScoreToLeaderboard() {
+  const rawName = playerNameInput.value.trim();
+  const name = rawName || '???';
+  const entries = loadLeaderboard();
+  entries.push({ name, score, lines, combo: bestCombo });
+  saveLeaderboard(entries);
+  renderLeaderboard();
+  overlayRecordEl.classList.add('hidden');
+  overlaySaveEl.classList.add('hidden');
+  overlaySavedMsg.classList.remove('hidden');
+}
+
+function resetLeaderboard() {
+  if (!confirm('¿Seguro que quieres borrar todos los récords?')) return;
+  localStorage.removeItem(LEADERBOARD_KEY);
+  renderLeaderboard();
+}
+
 function endGame() {
   gameOver = true;
   cancelAnimationFrame(animId);
   overlayTitle.textContent = 'GAME OVER';
   overlayScore.textContent = `Puntuación: ${score.toLocaleString()}`;
   overlay.classList.remove('hidden');
+  overlaySavedMsg.classList.add('hidden');
+  playerNameInput.value = '';
+  if (isNewRecord(score)) {
+    overlayRecordEl.classList.remove('hidden');
+    overlaySaveEl.classList.remove('hidden');
+  } else {
+    overlayRecordEl.classList.add('hidden');
+    overlaySaveEl.classList.add('hidden');
+  }
 }
 
 function togglePause() {
@@ -504,6 +588,10 @@ function init() {
   overlay.classList.add('hidden');
   cancelAnimationFrame(animId);
   animId = requestAnimationFrame(loop);
+  bestCombo = 0;
+  overlayRecordEl.classList.add('hidden');
+  overlaySaveEl.classList.add('hidden');
+  overlaySavedMsg.classList.add('hidden');
 }
 
 function renderPowerupLegend() {
@@ -545,7 +633,10 @@ document.addEventListener('keydown', e => {
 
 restartBtn.addEventListener('click', init);
 themeToggle.addEventListener('change', () => applyTheme(themeToggle.checked ? 'light' : 'dark'));
+saveScoreBtn.addEventListener('click', saveScoreToLeaderboard);
+resetLeaderboardBtn.addEventListener('click', resetLeaderboard);
 
 initTheme();
 renderPowerupLegend();
 init();
+renderLeaderboard();
