@@ -464,7 +464,12 @@ function loadLeaderboard() {
 function saveLeaderboard(entries) {
   entries.sort((a, b) => b.score - a.score);
   const truncated = entries.slice(0, LEADERBOARD_MAX);
-  localStorage.setItem(LEADERBOARD_KEY, JSON.stringify(truncated));
+  try {
+    localStorage.setItem(LEADERBOARD_KEY, JSON.stringify(truncated));
+  } catch (e) {
+    // Storage unavailable/full (private browsing, quota, blocked, etc.) — keep going
+    // so the caller's UI update still runs instead of leaving the overlay stuck.
+  }
   return truncated;
 }
 
@@ -510,7 +515,11 @@ function saveScoreToLeaderboard() {
 
 function resetLeaderboard() {
   if (!confirm('¿Seguro que quieres borrar todos los récords?')) return;
-  localStorage.removeItem(LEADERBOARD_KEY);
+  try {
+    localStorage.removeItem(LEADERBOARD_KEY);
+  } catch (e) {
+    // Storage unavailable — nothing to clear, still refresh the (already empty) view below.
+  }
   renderLeaderboard();
 }
 
