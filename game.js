@@ -86,6 +86,78 @@ const GRID_LINE_COLORS = {
   light: '#d0d0dc',
 };
 
+// Cada skin define cómo se dibuja el relleno base de un bloque (fillBlock).
+// El contorno dorado de comodín y el icono de powerup se dibujan por fuera,
+// igual para todas las skins (ver drawBlock).
+const SKINS = {
+  retro: {
+    label: 'Retro',
+    fillBlock(context, x, y, size, color) {
+      context.fillStyle = color;
+      context.fillRect(x * size + 1, y * size + 1, size - 2, size - 2);
+      // highlight
+      context.fillStyle = 'rgba(255,255,255,0.12)';
+      context.fillRect(x * size + 1, y * size + 1, size - 2, 4);
+    },
+  },
+  neon: {
+    label: 'Neon',
+    fillBlock(context, x, y, size, color) {
+      const px = x * size + 1, py = y * size + 1, s = size - 2;
+      context.save();
+      context.shadowBlur = size * 0.6;
+      context.shadowColor = color;
+      context.fillStyle = color;
+      context.fillRect(px, py, s, s);
+      context.restore();
+      context.shadowBlur = 0;
+      context.fillStyle = 'rgba(255,255,255,0.2)';
+      context.fillRect(px, py, s, 4);
+    },
+  },
+  pastel: {
+    label: 'Pastel',
+    fillBlock(context, x, y, size, color) {
+      const px = x * size + 1, py = y * size + 1, s = size - 2;
+      const radius = Math.min(6, s / 3);
+      const paintRect = () => {
+        if (typeof context.roundRect === 'function') {
+          context.beginPath();
+          context.roundRect(px, py, s, s, radius);
+          context.fill();
+        } else {
+          context.fillRect(px, py, s, s);
+        }
+      };
+      context.fillStyle = color;
+      paintRect();
+      // aclara el color superponiendo blanco translúcido
+      context.fillStyle = 'rgba(255,255,255,0.4)';
+      paintRect();
+    },
+  },
+  pixel: {
+    label: 'Pixel Art',
+    fillBlock(context, x, y, size, color) {
+      const px = x * size + 1, py = y * size + 1, s = size - 2;
+      context.fillStyle = color;
+      context.fillRect(px, py, s, s);
+      // patrón de textura tipo pixel-art/dithering
+      const tile = Math.max(2, Math.floor(s / 5));
+      for (let ty = 0, row = 0; ty < s; ty += tile, row++) {
+        for (let tx = 0, col = 0; tx < s; tx += tile, col++) {
+          const w = Math.min(tile, s - tx);
+          const h = Math.min(tile, s - ty);
+          context.fillStyle = (row + col) % 2 === 0
+            ? 'rgba(0,0,0,0.15)'
+            : 'rgba(255,255,255,0.15)';
+          context.fillRect(px + tx, py + ty, w, h);
+        }
+      }
+    },
+  },
+};
+
 const canvas = document.getElementById('board');
 const ctx = canvas.getContext('2d');
 const nextCanvas = document.getElementById('next-canvas');
@@ -98,6 +170,7 @@ const overlayTitle = document.getElementById('overlay-title');
 const overlayScore = document.getElementById('overlay-score');
 const restartBtn = document.getElementById('restart-btn');
 const themeToggle = document.getElementById('theme-toggle');
+const skinSelect = document.getElementById('skin-select');
 const powerupBanner = document.getElementById('powerup-banner');
 const powerupLegendEl = document.getElementById('powerup-legend');
 const leaderboardListEl = document.getElementById('leaderboard-list');
@@ -114,6 +187,13 @@ const LEADERBOARD_MAX = 5;
 let board, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId, theme;
 let powerupCounter, pendingPowerup, freezeUntil, powerupBannerTimeout;
 let bestCombo;
+// Se inicializa de forma síncrona (no solo vía initSkin()) para que la primera
+// pieza dibujada por init() ya use la skin persistida, sin depender del orden
+// de las llamadas de arranque al final del archivo.
+let skin = (function readStoredSkin() {
+  const stored = localStorage.getItem('tetris-skin');
+  return isValidSkin(stored) ? stored : 'retro';
+})();
 
 function applyTheme(t) {
   theme = t;
@@ -125,6 +205,21 @@ function applyTheme(t) {
 function initTheme() {
   const stored = document.documentElement.getAttribute('data-theme');
   applyTheme(stored === 'light' ? 'light' : 'dark');
+}
+
+function isValidSkin(name) {
+  return typeof name === 'string' && Object.prototype.hasOwnProperty.call(SKINS, name);
+}
+
+function applySkin(name) {
+  skin = isValidSkin(name) ? name : 'retro';
+  localStorage.setItem('tetris-skin', skin);
+  if (skinSelect) skinSelect.value = skin;
+}
+
+function initSkin() {
+  const stored = localStorage.getItem('tetris-skin');
+  applySkin(isValidSkin(stored) ? stored : 'retro');
 }
 
 function createBoard() {
@@ -381,11 +476,8 @@ function drawBlock(context, x, y, colorIndex, size, alpha) {
   const isWildcard = colorIndex < 0;
   const color = COLORS[Math.abs(colorIndex)];
   context.globalAlpha = alpha ?? 1;
-  context.fillStyle = color;
-  context.fillRect(x * size + 1, y * size + 1, size - 2, size - 2);
-  // highlight
-  context.fillStyle = 'rgba(255,255,255,0.12)';
-  context.fillRect(x * size + 1, y * size + 1, size - 2, 4);
+  const skinDef = SKINS[skin] || SKINS.retro;
+  skinDef.fillBlock(context, x, y, size, color);
   if (isWildcard) {
     context.strokeStyle = '#ffd700';
     context.lineWidth = 2;
@@ -644,8 +736,10 @@ restartBtn.addEventListener('click', init);
 themeToggle.addEventListener('change', () => applyTheme(themeToggle.checked ? 'light' : 'dark'));
 saveScoreBtn.addEventListener('click', saveScoreToLeaderboard);
 resetLeaderboardBtn.addEventListener('click', resetLeaderboard);
+if (skinSelect) skinSelect.addEventListener('change', () => applySkin(skinSelect.value));
 
 initTheme();
 renderPowerupLegend();
 init();
 renderLeaderboard();
+initSkin();
