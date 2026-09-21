@@ -4,21 +4,165 @@ const COLS = 10;
 const ROWS = 20;
 const BLOCK = 30;
 
-const COLORS = [
-  null,
-  '#4dd0e1', // I - cyan
-  '#ffd54f', // O - yellow
-  '#ba68c8', // T - purple
-  '#81c784', // S - green
-  '#e57373', // Z - red
-  '#7986cb', // J - indigo
-  '#ffb74d', // L - orange
-  '#4db6ac', // + pentomino - teal
-  '#f06292', // U pentomino - pink
-  '#9575cd', // Y pentomino - violet
-  '#fff176', // mono reward - bright yellow
-  '#90a4ae', // hollow ring - blue grey
-];
+// Each skin owns its palette (12 color indices, index 0 unused) plus its own
+// block-drawing routine. `drawBlock(context, x, y, colorIndex, size, alpha)`
+// draws one cell at grid coordinates (x, y) — `x * size`/`y * size` pixels —
+// so both the board (size = BLOCK) and the preview slots (size = NB) share it.
+const SKINS = {
+  retro: {
+    id: 'retro',
+    label: 'Retro',
+    theme: 'retro',
+    gridColor: '#22222e',
+    colors: [
+      null,
+      '#4dd0e1', // I - cyan
+      '#ffd54f', // O - yellow
+      '#ba68c8', // T - purple
+      '#81c784', // S - green
+      '#e57373', // Z - red
+      '#7986cb', // J - indigo
+      '#ffb74d', // L - orange
+      '#4db6ac', // + pentomino - teal
+      '#f06292', // U pentomino - pink
+      '#9575cd', // Y pentomino - violet
+      '#fff176', // mono reward - bright yellow
+      '#90a4ae', // hollow ring - blue grey
+    ],
+    // Flat fill with a soft top highlight — the historical look, kept as the
+    // regression baseline for the other skins.
+    drawBlock(context, x, y, colorIndex, size, alpha) {
+      const px = x * size + 1, py = y * size + 1, s = size - 2;
+      context.globalAlpha = alpha;
+      context.fillStyle = this.colors[colorIndex];
+      context.fillRect(px, py, s, s);
+      context.fillStyle = 'rgba(255,255,255,0.12)';
+      context.fillRect(px, py, s, 4);
+      context.globalAlpha = 1;
+    },
+  },
+  neon: {
+    id: 'neon',
+    label: 'Neón',
+    theme: 'neon',
+    gridColor: '#1a2a3a',
+    colors: [
+      null,
+      '#00e5ff', // I - cyan
+      '#ffea00', // O - yellow
+      '#e040fb', // T - purple
+      '#00e676', // S - green
+      '#ff1744', // Z - red
+      '#536dfe', // J - indigo
+      '#ff9100', // L - orange
+      '#1de9b6', // + pentomino - teal
+      '#f50057', // U pentomino - pink
+      '#7c4dff', // Y pentomino - violet
+      '#ffff00', // mono reward - bright yellow
+      '#b0bec5', // hollow ring - blue grey
+    ],
+    // Dark fill with a glowing outline. `save()/restore()` keeps the shadow
+    // state from leaking into the flash text or the power-up outline.
+    drawBlock(context, x, y, colorIndex, size, alpha) {
+      const color = this.colors[colorIndex];
+      const px = x * size + 1, py = y * size + 1, s = size - 2;
+      context.save();
+      context.globalAlpha = alpha;
+      context.shadowBlur = size * 0.6;
+      context.shadowColor = color;
+      context.fillStyle = 'rgba(8,10,20,0.9)';
+      context.fillRect(px, py, s, s);
+      context.shadowBlur = 0;
+      context.strokeStyle = color;
+      context.lineWidth = 2;
+      context.strokeRect(px + 1, py + 1, Math.max(0, s - 2), Math.max(0, s - 2));
+      context.restore();
+    },
+  },
+  pastel: {
+    id: 'pastel',
+    label: 'Pastel',
+    theme: 'pastel',
+    gridColor: '#dcd6e8',
+    colors: [
+      null,
+      '#a8dee6', // I - cyan
+      '#f3e2a0', // O - yellow
+      '#d7b6dd', // T - purple
+      '#b8dcb0', // S - green
+      '#eab3ae', // Z - red
+      '#b6bfe6', // J - indigo
+      '#f0c9a0', // L - orange
+      '#a6d9cd', // + pentomino - teal
+      '#f0bcd0', // U pentomino - pink
+      '#c7bce6', // Y pentomino - violet
+      '#f5eeb0', // mono reward - bright yellow
+      '#c6cdd2', // hollow ring - blue grey
+    ],
+    // Soft, desaturated fill with rounded corners; falls back to a square
+    // fillRect when the context has no roundRect support.
+    drawBlock(context, x, y, colorIndex, size, alpha) {
+      const px = x * size + 1, py = y * size + 1, s = size - 2;
+      context.globalAlpha = alpha;
+      context.fillStyle = this.colors[colorIndex];
+      const radius = Math.min(5, s / 3);
+      if (typeof context.roundRect === 'function') {
+        context.beginPath();
+        context.roundRect(px, py, s, s, radius);
+        context.fill();
+      } else {
+        context.fillRect(px, py, s, s);
+      }
+      context.globalAlpha = 1;
+    },
+  },
+  pixel: {
+    id: 'pixel',
+    label: 'Pixel',
+    theme: 'pixel',
+    gridColor: '#33333f',
+    // Shares the retro palette on purpose — only the texture differs — kept
+    // as a live reference so the two never drift apart.
+    colors: null,
+    // Flat fill plus a cheap two-rect checker texture on top, at low alpha so
+    // it reads as a dither pattern without a per-pixel loop.
+    drawBlock(context, x, y, colorIndex, size, alpha) {
+      const px = x * size + 1, py = y * size + 1, s = size - 2;
+      context.globalAlpha = alpha;
+      context.fillStyle = this.colors[colorIndex];
+      context.fillRect(px, py, s, s);
+      context.fillStyle = 'rgba(0,0,0,0.2)';
+      const half = s / 2;
+      context.fillRect(px, py, half, half);
+      context.fillRect(px + half, py + half, s - half, s - half);
+      context.globalAlpha = 1;
+    },
+  },
+};
+
+// pixel intentionally reuses retro's palette verbatim — only the texture differs.
+SKINS.pixel.colors = SKINS.retro.colors;
+
+const SKIN_STORAGE_KEY = 'tetris.skin';
+
+function loadSkin() {
+  try {
+    const id = localStorage.getItem(SKIN_STORAGE_KEY);
+    return SKINS[id] ? id : 'retro';
+  } catch (err) {
+    return 'retro';
+  }
+}
+
+function saveSkin(id) {
+  try {
+    localStorage.setItem(SKIN_STORAGE_KEY, id);
+  } catch (err) {
+    // Storage may be unavailable (private mode, quota); the skin just won't persist.
+  }
+}
+
+let activeSkin = SKINS[loadSkin()];
 
 // Standard tetrominoes are types 1..7; everything above is a non-standard piece.
 const STANDARD_TYPES = [1, 2, 3, 4, 5, 6, 7];
@@ -192,6 +336,7 @@ const restartBtn = document.getElementById('restart-btn');
 const comboEl = document.getElementById('combo');
 const b2bEl = document.getElementById('b2b');
 const powerupEl = document.getElementById('powerup');
+const skinSelectEl = document.getElementById('skin-select');
 
 let board, current, nextQueue, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId;
 let mode, timeLeft, garbageAccum, invisibleCells, revealUntil;
@@ -652,18 +797,11 @@ function updateHUD() {
 
 function drawBlock(context, x, y, colorIndex, size, alpha) {
   if (!colorIndex) return;
-  const color = COLORS[colorIndex];
-  context.globalAlpha = alpha ?? 1;
-  context.fillStyle = color;
-  context.fillRect(x * size + 1, y * size + 1, size - 2, size - 2);
-  // highlight
-  context.fillStyle = 'rgba(255,255,255,0.12)';
-  context.fillRect(x * size + 1, y * size + 1, size - 2, 4);
-  context.globalAlpha = 1;
+  activeSkin.drawBlock(context, x, y, colorIndex, size, alpha ?? 1);
 }
 
 function drawGrid() {
-  ctx.strokeStyle = '#22222e';
+  ctx.strokeStyle = activeSkin.gridColor;
   ctx.lineWidth = 0.5;
   for (let c = 1; c < COLS; c++) {
     ctx.beginPath();
@@ -760,19 +898,15 @@ function drawShapeInSlot(context, shape, offsetY, size, alpha) {
   const cells = Math.max(4, shape.length, shape[0].length);
   const NB = size / cells;
   const offX = (cells - shape[0].length) / 2;
-  const offY = (cells - shape.length) / 2;
-  context.globalAlpha = alpha ?? 1;
+  // `offsetY` is always a multiple of `size` (a whole number of slots), so
+  // dividing by NB stays a whole number of grid rows — same grid space the
+  // active skin's drawBlock already expects.
+  const offY = (cells - shape.length) / 2 + offsetY / NB;
   for (let r = 0; r < shape.length; r++)
     for (let c = 0; c < shape[r].length; c++) {
       if (!shape[r][c]) continue;
-      const x = (offX + c) * NB;
-      const y = offsetY + (offY + r) * NB;
-      context.fillStyle = COLORS[shape[r][c]];
-      context.fillRect(x + 1, y + 1, NB - 2, NB - 2);
-      context.fillStyle = 'rgba(255,255,255,0.12)';
-      context.fillRect(x + 1, y + 1, NB - 2, 3);
+      drawBlock(context, offX + c, offY + r, shape[r][c], NB, alpha);
     }
-  context.globalAlpha = 1;
 }
 
 function drawNext() {
@@ -791,6 +925,31 @@ function drawHold() {
   holdCanvas.classList.toggle('blocked', holdUsed);
   if (hold === null) return;
   drawShapeInSlot(holdCtx, PIECES[hold], 0, 120, holdUsed ? 0.35 : 1);
+}
+
+function buildSkinSelector() {
+  for (const id of Object.keys(SKINS)) {
+    const option = document.createElement('option');
+    option.value = id;
+    option.textContent = SKINS[id].label;
+    skinSelectEl.appendChild(option);
+  }
+  skinSelectEl.value = activeSkin.id;
+}
+
+// Applies a skin hot: no page reload needed. `board` is only set once the
+// game has started (init() runs before it), so this also covers the start
+// screen and pause overlay, where the render loop is not ticking.
+function applySkin(id) {
+  activeSkin = SKINS[id] ? SKINS[id] : SKINS.retro;
+  document.body.dataset.skin = activeSkin.theme;
+  saveSkin(activeSkin.id);
+  skinSelectEl.value = activeSkin.id;
+  if (board) {
+    drawNext();
+    drawHold();
+    if (current) draw();
+  }
 }
 
 function finishGame(title, message) {
@@ -995,7 +1154,11 @@ document.addEventListener('keydown', e => {
 
 restartBtn.addEventListener('click', () => init(mode.id));
 
+skinSelectEl.addEventListener('change', () => applySkin(skinSelectEl.value));
+
 buildAbilityList();
 buildModeList();
+buildSkinSelector();
+document.body.dataset.skin = activeSkin.theme;
 mode = MODES[0];
 showModeSelect();
