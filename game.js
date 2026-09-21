@@ -337,6 +337,13 @@ const comboEl = document.getElementById('combo');
 const b2bEl = document.getElementById('b2b');
 const powerupEl = document.getElementById('powerup');
 const skinSelectEl = document.getElementById('skin-select');
+const pauseMenuEl = document.getElementById('pause-menu');
+const resumeBtn = document.getElementById('resume-btn');
+const pauseRestartBtn = document.getElementById('pause-restart-btn');
+const viewControlsBtn = document.getElementById('view-controls-btn');
+const pauseControlsList = document.getElementById('pause-controls-list');
+const startLevelSelect = document.getElementById('start-level-select');
+const sideControlsEl = document.getElementById('side-controls');
 
 let board, current, nextQueue, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId;
 let mode, timeLeft, garbageAccum, invisibleCells, revealUntil;
@@ -344,7 +351,32 @@ let hold, holdUsed, pendingReward;
 let combo, b2b, lastMoveWasRotation, flash;
 let linesSincePowerup, pendingPowerup, frozenUntil, wildcards;
 let energy, previewUntil, slowUntil, undoSnapshot, pieceStartScore;
+let menuOpen = false;
 let audioCtx = null;
+
+// localStorage can throw in private browsing; every access is wrapped.
+const START_LEVEL_KEY = 'tetris.startLevel';
+
+function loadStartLevel() {
+  try {
+    const raw = localStorage.getItem(START_LEVEL_KEY);
+    const n = Number(raw);
+    if (Number.isInteger(n) && n >= 1 && n <= 15) return n;
+  } catch (err) {
+    // Ignore read failures and fall back to the default.
+  }
+  return 1;
+}
+
+function saveStartLevel(value) {
+  try {
+    localStorage.setItem(START_LEVEL_KEY, String(value));
+  } catch (err) {
+    // Ignore write failures (private mode, quota, etc.).
+  }
+}
+
+let startLevel = loadStartLevel();
 
 const ABILITIES = [
   {
@@ -583,7 +615,7 @@ function applyScore(cleared, tSpin) {
   if (combo > 0) gained += COMBO_BONUS * combo * level;
 
   lines += cleared;
-  level = Math.floor(lines / 10) + 1;
+  level = Math.max(startLevel, Math.floor(lines / 10) + 1);
   dropInterval = Math.max(100, 1000 - (level - 1) * 90);
   energy = Math.min(MAX_ENERGY, energy + cleared * ENERGY_PER_LINE);
   grantPowerupProgress(cleared);
@@ -952,13 +984,25 @@ function applySkin(id) {
   }
 }
 
+// The overlay is translucent, so the sidebar controls would still be legible
+// underneath it while paused and make "Ver controles" look like a no-op. The
+// menu conceals them and owns the key list for as long as it is open. Closing
+// the menu always collapses its own list, so it reopens closed next time.
+function setPauseMenuOpen(open) {
+  pauseMenuEl.classList.toggle('hidden', !open);
+  sideControlsEl.classList.toggle('concealed', open);
+  if (!open) pauseControlsList.classList.add('hidden');
+}
+
 function finishGame(title, message) {
   gameOver = true;
+  menuOpen = false;
   cancelAnimationFrame(animId);
   overlayTitle.textContent = title;
   overlayScore.textContent = message;
   restartBtn.classList.remove('hidden');
   modeListEl.classList.remove('hidden');
+  setPauseMenuOpen(false);
   overlay.classList.remove('hidden');
 }
 
@@ -969,7 +1013,9 @@ function endGame() {
 function togglePause() {
   if (gameOver || !current) return;
   paused = !paused;
+  menuOpen = paused;
   if (!paused) {
+    setPauseMenuOpen(false);
     lastTime = performance.now();
     overlay.classList.add('hidden');
     loop(lastTime);
@@ -979,6 +1025,7 @@ function togglePause() {
     overlayScore.textContent = '';
     restartBtn.classList.add('hidden');
     modeListEl.classList.add('hidden');
+    setPauseMenuOpen(true);
     overlay.classList.remove('hidden');
   }
 }
@@ -1053,10 +1100,12 @@ function buildModeList() {
 
 function showModeSelect() {
   cancelAnimationFrame(animId);
+  menuOpen = false;
   overlayTitle.textContent = 'TETRIS';
   overlayScore.textContent = 'Elige un modo';
   restartBtn.classList.add('hidden');
   modeListEl.classList.remove('hidden');
+  setPauseMenuOpen(false);
   overlay.classList.remove('hidden');
 }
 
@@ -1065,10 +1114,11 @@ function init(modeId) {
   board = createBoard();
   score = 0;
   lines = 0;
-  level = 1;
+  level = startLevel;
   paused = false;
   gameOver = false;
-  dropInterval = 1000;
+  menuOpen = false;
+  dropInterval = Math.max(100, 1000 - (level - 1) * 90);
   dropAccum = 0;
   lastTime = performance.now();
   timeLeft = mode.timeLimitMs || 0;
@@ -1096,6 +1146,8 @@ function init(modeId) {
   nextQueue = Array.from({ length: QUEUE_SIZE }, () => randomPiece());
   spawn();
   updateHUD();
+  startLevelSelect.value = String(startLevel);
+  setPauseMenuOpen(false);
   overlay.classList.add('hidden');
   cancelAnimationFrame(animId);
   animId = requestAnimationFrame(loop);
@@ -1105,14 +1157,14 @@ function init(modeId) {
 // of view mid-game, so every key the game owns is claimed here.
 const GAME_KEYS = new Set([
   'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Space',
-  'KeyX', 'KeyC', 'KeyP', 'ShiftLeft', 'ShiftRight',
+  'KeyX', 'KeyC', 'KeyP', 'Escape', 'ShiftLeft', 'ShiftRight',
   'Digit1', 'Digit2', 'Digit3', 'Digit4', 'Digit5',
 ]);
 
 document.addEventListener('keydown', e => {
   if (GAME_KEYS.has(e.code)) e.preventDefault();
-  if (e.code === 'KeyP') { togglePause(); return; }
-  if (!current || paused || gameOver) return;
+  if (e.code === 'KeyP' || e.code === 'Escape') { togglePause(); return; }
+  if (!current || paused || gameOver || menuOpen) return;
   switch (e.code) {
     case 'ArrowLeft':
       if (!collide(current.shape, current.x - 1, current.y)) {
@@ -1153,6 +1205,16 @@ document.addEventListener('keydown', e => {
 });
 
 restartBtn.addEventListener('click', () => init(mode.id));
+resumeBtn.addEventListener('click', () => togglePause());
+pauseRestartBtn.addEventListener('click', () => init(mode.id));
+viewControlsBtn.addEventListener('click', () => {
+  pauseControlsList.classList.toggle('hidden');
+});
+startLevelSelect.addEventListener('change', () => {
+  const value = Number(startLevelSelect.value);
+  startLevel = value;
+  saveStartLevel(value);
+});
 
 skinSelectEl.addEventListener('change', () => applySkin(skinSelectEl.value));
 
@@ -1161,4 +1223,5 @@ buildModeList();
 buildSkinSelector();
 document.body.dataset.skin = activeSkin.theme;
 mode = MODES[0];
+startLevelSelect.value = String(startLevel);
 showModeSelect();
