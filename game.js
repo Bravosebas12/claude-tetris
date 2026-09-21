@@ -28,6 +28,75 @@ const PIECES = [
 
 const LINE_SCORES = [0, 100, 300, 500, 800];
 
+// A power-up piece is granted every POWERUP_EVERY cleared lines.
+const POWERUP_EVERY = 10;
+const FREEZE_MS = 5000;
+
+// Each effect runs right after the piece is merged, before lines are cleared.
+// `cells` is the list of board cells the piece just wrote.
+const POWERUPS = [
+  {
+    id: 'bomba',
+    label: 'Bomba',
+    color: '#ff5252',
+    apply(cells) {
+      for (const { r, c } of cells)
+        for (let dr = -1; dr <= 1; dr++)
+          for (let dc = -1; dc <= 1; dc++) {
+            const y = r + dr, x = c + dc;
+            if (y >= 0 && y < ROWS && x >= 0 && x < COLS) clearCell(y, x);
+          }
+    },
+  },
+  {
+    id: 'rayo',
+    label: 'Rayo',
+    color: '#40c4ff',
+    apply(cells) {
+      const origin = cells[cells.length - 1];
+      for (let c = 0; c < COLS; c++) clearCell(origin.r, c);
+      for (let r = 0; r < ROWS; r++) clearCell(r, origin.c);
+    },
+  },
+  {
+    id: 'tinte',
+    label: 'Tinte',
+    color: '#ea80fc',
+    // Turns the holes underneath the piece into wildcards: empty cells that
+    // still count as filled when checking for a complete line.
+    apply(cells) {
+      const lowestByColumn = new Map();
+      for (const { r, c } of cells)
+        if (!lowestByColumn.has(c) || lowestByColumn.get(c) < r) lowestByColumn.set(c, r);
+      for (const [c, r] of lowestByColumn)
+        for (let y = r + 1; y < ROWS; y++)
+          if (board[y][c] === 0) wildcards.add(y * COLS + c);
+    },
+  },
+  {
+    id: 'gravedad',
+    label: 'Gravedad',
+    color: '#69f0ae',
+    apply() {
+      for (let c = 0; c < COLS; c++) {
+        const stack = [];
+        for (let r = ROWS - 1; r >= 0; r--) if (board[r][c]) stack.push(board[r][c]);
+        for (let r = ROWS - 1, i = 0; r >= 0; r--, i++) board[r][c] = stack[i] || 0;
+      }
+      // Holes are gone, so any pending wildcard is consumed.
+      wildcards.clear();
+    },
+  },
+  {
+    id: 'congelar',
+    label: 'Congelar',
+    color: '#80d8ff',
+    apply() {
+      frozenUntil = performance.now() + FREEZE_MS;
+    },
+  },
+];
+
 const canvas = document.getElementById('board');
 const ctx = canvas.getContext('2d');
 const nextCanvas = document.getElementById('next-canvas');
@@ -39,8 +108,10 @@ const overlay = document.getElementById('overlay');
 const overlayTitle = document.getElementById('overlay-title');
 const overlayScore = document.getElementById('overlay-score');
 const restartBtn = document.getElementById('restart-btn');
+const powerupEl = document.getElementById('powerup');
 
 let board, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId;
+let linesSincePowerup, pendingPowerup, frozenUntil, wildcards;
 
 function createBoard() {
   return Array.from({ length: ROWS }, () => new Array(COLS).fill(0));
@@ -49,7 +120,36 @@ function createBoard() {
 function randomPiece() {
   const type = Math.floor(Math.random() * 7) + 1;
   const shape = PIECES[type].map(row => [...row]);
-  return { type, shape, x: Math.floor(COLS / 2) - Math.floor(shape[0].length / 2), y: 0 };
+  const piece = { type, shape, x: Math.floor(COLS / 2) - Math.floor(shape[0].length / 2), y: 0, powerup: null };
+  if (pendingPowerup) {
+    piece.powerup = pendingPowerup;
+    pendingPowerup = null;
+  }
+  return piece;
+}
+
+function clearCell(r, c) {
+  board[r][c] = 0;
+  wildcards.delete(r * COLS + c);
+}
+
+// Rows above the removed one shift down by one, so their wildcard keys move too.
+function reindexWildcardsAfterClear(removedRow) {
+  const next = new Set();
+  for (const key of wildcards) {
+    const r = Math.floor(key / COLS);
+    const c = key % COLS;
+    if (r === removedRow) continue;
+    if (r < removedRow) next.add((r + 1) * COLS + c);
+    else next.add(key);
+  }
+  wildcards = next;
+}
+
+function isRowComplete(r) {
+  for (let c = 0; c < COLS; c++)
+    if (board[r][c] === 0 && !wildcards.has(r * COLS + c)) return false;
+  return true;
 }
 
 function collide(shape, ox, oy) {
@@ -87,23 +187,30 @@ function tryRotate() {
 }
 
 function merge() {
+  const cells = [];
   for (let r = 0; r < current.shape.length; r++)
     for (let c = 0; c < current.shape[r].length; c++)
-      if (current.shape[r][c])
-        board[current.y + r][current.x + c] = current.shape[r][c];
+      if (current.shape[r][c]) {
+        const y = current.y + r, x = current.x + c;
+        board[y][x] = current.shape[r][c];
+        cells.push({ r: y, c: x });
+      }
+  return cells;
 }
 
 function clearLines() {
   let cleared = 0;
   for (let r = ROWS - 1; r >= 0; r--) {
-    if (board[r].every(v => v !== 0)) {
+    if (isRowComplete(r)) {
       board.splice(r, 1);
       board.unshift(new Array(COLS).fill(0));
+      reindexWildcardsAfterClear(r);
       cleared++;
       r++;
     }
   }
   if (cleared) {
+    grantPowerupProgress(cleared);
     lines += cleared;
     score += (LINE_SCORES[cleared] || 0) * level;
     level = Math.floor(lines / 10) + 1;
@@ -135,8 +242,17 @@ function softDrop() {
   }
 }
 
+function grantPowerupProgress(cleared) {
+  linesSincePowerup += cleared;
+  while (linesSincePowerup >= POWERUP_EVERY) {
+    linesSincePowerup -= POWERUP_EVERY;
+    pendingPowerup = POWERUPS[Math.floor(Math.random() * POWERUPS.length)];
+  }
+}
+
 function lockPiece() {
-  merge();
+  const cells = merge();
+  if (current.powerup) current.powerup.apply(cells);
   clearLines();
   spawn();
 }
@@ -154,6 +270,14 @@ function updateHUD() {
   scoreEl.textContent = score.toLocaleString();
   linesEl.textContent = lines;
   levelEl.textContent = level;
+  const frozenLeft = frozenUntil - performance.now();
+  if (frozenLeft > 0) {
+    powerupEl.textContent = `Congelado ${(frozenLeft / 1000).toFixed(1)}s`;
+  } else if (current && current.powerup) {
+    powerupEl.textContent = current.powerup.label;
+  } else {
+    powerupEl.textContent = '-';
+  }
 }
 
 function drawBlock(context, x, y, colorIndex, size, alpha) {
@@ -201,10 +325,36 @@ function draw() {
       if (current.shape[r][c])
         drawBlock(ctx, current.x + c, gy + r, current.shape[r][c], BLOCK, 0.2);
 
+  // wildcards left behind by the Tinte power-up
+  ctx.save();
+  ctx.strokeStyle = '#ea80fc';
+  ctx.setLineDash([4, 3]);
+  ctx.lineWidth = 2;
+  for (const key of wildcards) {
+    const r = Math.floor(key / COLS), c = key % COLS;
+    ctx.strokeRect(c * BLOCK + 2, r * BLOCK + 2, BLOCK - 4, BLOCK - 4);
+  }
+  ctx.restore();
+
   // current piece
   for (let r = 0; r < current.shape.length; r++)
     for (let c = 0; c < current.shape[r].length; c++)
       drawBlock(ctx, current.x + c, current.y + r, current.shape[r][c], BLOCK);
+
+  if (current.powerup) drawPowerupOutline();
+}
+
+function drawPowerupOutline() {
+  const pulse = 0.55 + 0.45 * Math.sin(performance.now() / 200);
+  ctx.save();
+  ctx.globalAlpha = pulse;
+  ctx.strokeStyle = current.powerup.color;
+  ctx.lineWidth = 2;
+  for (let r = 0; r < current.shape.length; r++)
+    for (let c = 0; c < current.shape[r].length; c++)
+      if (current.shape[r][c])
+        ctx.strokeRect((current.x + c) * BLOCK + 1, (current.y + r) * BLOCK + 1, BLOCK - 2, BLOCK - 2);
+  ctx.restore();
 }
 
 function drawNext() {
@@ -244,16 +394,23 @@ function loop(ts) {
   if (gameOver || paused) return;
   const dt = ts - lastTime;
   lastTime = ts;
-  dropAccum += dt;
-  if (dropAccum >= dropInterval) {
+  // The Congelar power-up suspends gravity; input and rendering keep running.
+  const frozen = ts < frozenUntil;
+  if (frozen) {
     dropAccum = 0;
-    if (!collide(current.shape, current.x, current.y + 1)) {
-      current.y++;
-    } else {
-      lockPiece();
+  } else {
+    dropAccum += dt;
+    if (dropAccum >= dropInterval) {
+      dropAccum = 0;
+      if (!collide(current.shape, current.x, current.y + 1)) {
+        current.y++;
+      } else {
+        lockPiece();
+      }
     }
   }
   draw();
+  updateHUD();
   if (gameOver) return;
   animId = requestAnimationFrame(loop);
 }
@@ -268,6 +425,10 @@ function init() {
   dropInterval = 1000;
   dropAccum = 0;
   lastTime = performance.now();
+  linesSincePowerup = 0;
+  pendingPowerup = null;
+  frozenUntil = 0;
+  wildcards = new Set();
   next = randomPiece();
   spawn();
   updateHUD();

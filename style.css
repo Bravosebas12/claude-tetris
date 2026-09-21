@@ -150,3 +150,9 @@ kbd {
 #restart-btn:hover {
   background: #9bbdff;
 }
+
+/* ---- Power-ups ---- */
+.value.small {
+  font-size: 15px;
+  color: #ea80fc;
+}
