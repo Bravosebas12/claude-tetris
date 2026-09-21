@@ -28,6 +28,48 @@ const PIECES = [
 
 const LINE_SCORES = [0, 100, 300, 500, 800];
 
+const REVEAL_MS = 320;
+
+// Every mode is the classic game plus a handicap and, optionally, an objective.
+const MODES = [
+  {
+    id: 'classic',
+    label: 'Clásico',
+    hint: 'Sin objetivo',
+  },
+  {
+    id: 'sprint',
+    label: 'Sprint 40 líneas',
+    hint: '40 líneas en 2:00',
+    targetLines: 40,
+    timeLimitMs: 120000,
+  },
+  {
+    id: 'garbage',
+    label: 'Basura ascendente',
+    hint: 'Una fila sube cada 10s',
+    garbageEveryMs: 10000,
+  },
+  {
+    id: 'prefilled',
+    label: 'Bloques prefijados',
+    hint: 'El tablero empieza sucio',
+    prefillRows: 5,
+  },
+  {
+    id: 'invisible',
+    label: 'Piezas invisibles',
+    hint: 'Las piezas fijadas se ocultan',
+    invisible: true,
+  },
+  {
+    id: 'reverse',
+    label: 'Rotación inversa',
+    hint: 'Desde el nivel 2 se rota al revés',
+    reverseFromLevel: 2,
+  },
+];
+
 const canvas = document.getElementById('board');
 const ctx = canvas.getContext('2d');
 const nextCanvas = document.getElementById('next-canvas');
@@ -35,12 +77,16 @@ const nextCtx = nextCanvas.getContext('2d');
 const scoreEl = document.getElementById('score');
 const linesEl = document.getElementById('lines');
 const levelEl = document.getElementById('level');
+const modeEl = document.getElementById('mode');
+const objectiveEl = document.getElementById('objective');
 const overlay = document.getElementById('overlay');
 const overlayTitle = document.getElementById('overlay-title');
 const overlayScore = document.getElementById('overlay-score');
+const modeListEl = document.getElementById('mode-list');
 const restartBtn = document.getElementById('restart-btn');
 
 let board, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId;
+let mode, timeLeft, garbageAccum, invisibleCells, revealUntil;
 
 function createBoard() {
   return Array.from({ length: ROWS }, () => new Array(COLS).fill(0));
@@ -74,8 +120,13 @@ function rotateCW(shape) {
   return result;
 }
 
+function rotateCCW(shape) {
+  return rotateCW(rotateCW(rotateCW(shape)));
+}
+
 function tryRotate() {
-  const rotated = rotateCW(current.shape);
+  const inverted = mode.reverseFromLevel && level >= mode.reverseFromLevel;
+  const rotated = inverted ? rotateCCW(current.shape) : rotateCW(current.shape);
   const kicks = [0, -1, 1, -2, 2];
   for (const kick of kicks) {
     if (!collide(rotated, current.x + kick, current.y)) {
@@ -89,8 +140,24 @@ function tryRotate() {
 function merge() {
   for (let r = 0; r < current.shape.length; r++)
     for (let c = 0; c < current.shape[r].length; c++)
-      if (current.shape[r][c])
-        board[current.y + r][current.x + c] = current.shape[r][c];
+      if (current.shape[r][c]) {
+        const y = current.y + r, x = current.x + c;
+        board[y][x] = current.shape[r][c];
+        if (mode.invisible) invisibleCells.add(y * COLS + x);
+      }
+}
+
+// Rows above the removed one shift down, so their hidden-cell keys move too.
+function reindexInvisibleAfterClear(removedRow) {
+  if (!mode.invisible) return;
+  const next = new Set();
+  for (const key of invisibleCells) {
+    const r = Math.floor(key / COLS);
+    const c = key % COLS;
+    if (r === removedRow) continue;
+    next.add(r < removedRow ? (r + 1) * COLS + c : key);
+  }
+  invisibleCells = next;
 }
 
 function clearLines() {
@@ -99,6 +166,7 @@ function clearLines() {
     if (board[r].every(v => v !== 0)) {
       board.splice(r, 1);
       board.unshift(new Array(COLS).fill(0));
+      reindexInvisibleAfterClear(r);
       cleared++;
       r++;
     }
@@ -108,6 +176,7 @@ function clearLines() {
     score += (LINE_SCORES[cleared] || 0) * level;
     level = Math.floor(lines / 10) + 1;
     dropInterval = Math.max(100, 1000 - (level - 1) * 90);
+    if (mode.invisible) revealUntil = performance.now() + REVEAL_MS;
     updateHUD();
   }
 }
@@ -138,7 +207,17 @@ function softDrop() {
 function lockPiece() {
   merge();
   clearLines();
+  if (checkGoal()) return;
   spawn();
+}
+
+function checkGoal() {
+  if (mode.targetLines && lines >= mode.targetLines) {
+    const used = (mode.timeLimitMs - timeLeft) / 1000;
+    finishGame('¡OBJETIVO!', `${mode.targetLines} líneas en ${used.toFixed(1)}s`);
+    return true;
+  }
+  return false;
 }
 
 function spawn() {
@@ -150,10 +229,54 @@ function spawn() {
   drawNext();
 }
 
+function randomGarbageRow() {
+  const gap = Math.floor(Math.random() * COLS);
+  return Array.from({ length: COLS }, (_, c) => (c === gap ? 0 : Math.floor(Math.random() * 7) + 1));
+}
+
+function raiseGarbage() {
+  if (board[0].some(v => v !== 0)) {
+    endGame();
+    return;
+  }
+  board.shift();
+  board.push(randomGarbageRow());
+  reindexInvisibleAfterRaise();
+  // Keep the falling piece at the same height relative to the stack.
+  current.y--;
+  if (collide(current.shape, current.x, current.y)) endGame();
+}
+
+function reindexInvisibleAfterRaise() {
+  if (!mode.invisible) return;
+  const next = new Set();
+  for (const key of invisibleCells) {
+    const r = Math.floor(key / COLS);
+    if (r === 0) continue;
+    next.add(key - COLS);
+  }
+  invisibleCells = next;
+}
+
+function prefillBoard(rows) {
+  for (let r = ROWS - rows; r < ROWS; r++) board[r] = randomGarbageRow();
+}
+
+function formatTime(ms) {
+  const total = Math.max(0, Math.ceil(ms / 1000));
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
+}
+
 function updateHUD() {
   scoreEl.textContent = score.toLocaleString();
   linesEl.textContent = lines;
   levelEl.textContent = level;
+  modeEl.textContent = mode.label;
+  if (mode.timeLimitMs) {
+    objectiveEl.textContent = `${lines}/${mode.targetLines} · ${formatTime(timeLeft)}`;
+  } else {
+    objectiveEl.textContent = mode.hint;
+  }
 }
 
 function drawBlock(context, x, y, colorIndex, size, alpha) {
@@ -189,10 +312,14 @@ function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   drawGrid();
 
+  const hiding = mode.invisible && performance.now() > revealUntil;
+
   // board
   for (let r = 0; r < ROWS; r++)
-    for (let c = 0; c < COLS; c++)
+    for (let c = 0; c < COLS; c++) {
+      if (hiding && invisibleCells.has(r * COLS + c)) continue;
       drawBlock(ctx, c, r, board[r][c], BLOCK);
+    }
 
   // ghost
   const gy = ghostY();
@@ -218,25 +345,52 @@ function drawNext() {
       drawBlock(nextCtx, offX + c, offY + r, shape[r][c], NB);
 }
 
-function endGame() {
+function finishGame(title, message) {
   gameOver = true;
   cancelAnimationFrame(animId);
-  overlayTitle.textContent = 'GAME OVER';
-  overlayScore.textContent = `Puntuación: ${score.toLocaleString()}`;
+  overlayTitle.textContent = title;
+  overlayScore.textContent = message;
+  restartBtn.classList.remove('hidden');
+  modeListEl.classList.remove('hidden');
   overlay.classList.remove('hidden');
 }
 
+function endGame() {
+  finishGame('GAME OVER', `Puntuación: ${score.toLocaleString()}`);
+}
+
 function togglePause() {
-  if (gameOver) return;
+  if (gameOver || !current) return;
   paused = !paused;
   if (!paused) {
     lastTime = performance.now();
+    overlay.classList.add('hidden');
     loop(lastTime);
   } else {
     cancelAnimationFrame(animId);
     overlayTitle.textContent = 'PAUSA';
     overlayScore.textContent = '';
+    restartBtn.classList.add('hidden');
+    modeListEl.classList.add('hidden');
     overlay.classList.remove('hidden');
+  }
+}
+
+function onTick(dt) {
+  if (mode.timeLimitMs) {
+    timeLeft -= dt;
+    if (timeLeft <= 0) {
+      timeLeft = 0;
+      finishGame('TIEMPO AGOTADO', `${lines}/${mode.targetLines} líneas`);
+      return;
+    }
+  }
+  if (mode.garbageEveryMs) {
+    garbageAccum += dt;
+    if (garbageAccum >= mode.garbageEveryMs) {
+      garbageAccum = 0;
+      raiseGarbage();
+    }
   }
 }
 
@@ -244,6 +398,8 @@ function loop(ts) {
   if (gameOver || paused) return;
   const dt = ts - lastTime;
   lastTime = ts;
+  onTick(dt);
+  if (gameOver) return;
   dropAccum += dt;
   if (dropAccum >= dropInterval) {
     dropAccum = 0;
@@ -253,12 +409,33 @@ function loop(ts) {
       lockPiece();
     }
   }
-  draw();
   if (gameOver) return;
+  draw();
+  updateHUD();
   animId = requestAnimationFrame(loop);
 }
 
-function init() {
+function buildModeList() {
+  modeListEl.innerHTML = '';
+  for (const m of MODES) {
+    const li = document.createElement('li');
+    li.innerHTML = `<strong>${m.label}</strong><span>${m.hint}</span>`;
+    li.addEventListener('click', () => init(m.id));
+    modeListEl.appendChild(li);
+  }
+}
+
+function showModeSelect() {
+  cancelAnimationFrame(animId);
+  overlayTitle.textContent = 'TETRIS';
+  overlayScore.textContent = 'Elige un modo';
+  restartBtn.classList.add('hidden');
+  modeListEl.classList.remove('hidden');
+  overlay.classList.remove('hidden');
+}
+
+function init(modeId) {
+  mode = MODES.find(m => m.id === modeId) || MODES[0];
   board = createBoard();
   score = 0;
   lines = 0;
@@ -268,6 +445,11 @@ function init() {
   dropInterval = 1000;
   dropAccum = 0;
   lastTime = performance.now();
+  timeLeft = mode.timeLimitMs || 0;
+  garbageAccum = 0;
+  invisibleCells = new Set();
+  revealUntil = 0;
+  if (mode.prefillRows) prefillBoard(mode.prefillRows);
   next = randomPiece();
   spawn();
   updateHUD();
@@ -278,7 +460,7 @@ function init() {
 
 document.addEventListener('keydown', e => {
   if (e.code === 'KeyP') { togglePause(); return; }
-  if (paused || gameOver) return;
+  if (!current || paused || gameOver) return;
   switch (e.code) {
     case 'ArrowLeft':
       if (!collide(current.shape, current.x - 1, current.y)) current.x--;
@@ -301,6 +483,8 @@ document.addEventListener('keydown', e => {
   updateHUD();
 });
 
-restartBtn.addEventListener('click', init);
+restartBtn.addEventListener('click', () => init(mode.id));
 
-init();
+buildModeList();
+mode = MODES[0];
+showModeSelect();
