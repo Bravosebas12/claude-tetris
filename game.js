@@ -13,7 +13,22 @@ const COLORS = [
   '#e57373', // Z - red
   '#7986cb', // J - indigo
   '#ffb74d', // L - orange
+  '#4db6ac', // + pentomino - teal
+  '#f06292', // U pentomino - pink
+  '#9575cd', // Y pentomino - violet
+  '#fff176', // mono reward - bright yellow
+  '#90a4ae', // hollow ring - blue grey
 ];
+
+// Standard tetrominoes are types 1..7; everything above is a non-standard piece.
+const STANDARD_TYPES = [1, 2, 3, 4, 5, 6, 7];
+const PENTOMINO_TYPES = [8, 9, 10];
+const MONO_TYPE = 11;
+const RING_TYPE = 12;
+// Chance of drawing a non-standard piece instead of a tetromino.
+const EXTRA_PIECE_CHANCE = 0.08;
+// The hollow ring only shows up once the player is warmed up.
+const RING_MIN_LEVEL = 3;
 
 const PIECES = [
   null,
@@ -24,6 +39,11 @@ const PIECES = [
   [[5,5,0],[0,5,5],[0,0,0]],                  // Z
   [[6,0,0],[6,6,6],[0,0,0]],                  // J
   [[0,0,7],[7,7,7],[0,0,0]],                  // L
+  [[0,8,0],[8,8,8],[0,8,0]],                  // + pentomino
+  [[9,0,9],[9,9,9],[0,0,0]],                  // U pentomino
+  [[0,10,0,0],[10,10,0,0],[0,10,0,0],[0,10,0,0]], // Y pentomino
+  [[11]],                                      // mono (Tetris reward)
+  [[12,12,12],[12,0,12],[12,12,12]],           // hollow ring (challenge)
 ];
 
 const LINE_SCORES = [0, 100, 300, 500, 800];
@@ -37,6 +57,8 @@ const canvas = document.getElementById('board');
 const ctx = canvas.getContext('2d');
 const nextCanvas = document.getElementById('next-canvas');
 const nextCtx = nextCanvas.getContext('2d');
+const holdCanvas = document.getElementById('hold-canvas');
+const holdCtx = holdCanvas.getContext('2d');
 const scoreEl = document.getElementById('score');
 const linesEl = document.getElementById('lines');
 const levelEl = document.getElementById('level');
@@ -48,6 +70,7 @@ const comboEl = document.getElementById('combo');
 const b2bEl = document.getElementById('b2b');
 
 let board, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId;
+let hold, holdUsed, pendingReward;
 let combo, b2b, lastMoveWasRotation, flash;
 let audioCtx = null;
 
@@ -55,10 +78,28 @@ function createBoard() {
   return Array.from({ length: ROWS }, () => new Array(COLS).fill(0));
 }
 
-function randomPiece() {
-  const type = Math.floor(Math.random() * 7) + 1;
+function makePiece(type) {
   const shape = PIECES[type].map(row => [...row]);
   return { type, shape, x: Math.floor(COLS / 2) - Math.floor(shape[0].length / 2), y: 0 };
+}
+
+function pickType() {
+  // A Tetris grants the 1x1 block on the very next piece.
+  if (pendingReward) {
+    pendingReward = false;
+    return MONO_TYPE;
+  }
+  if (Math.random() < EXTRA_PIECE_CHANCE) {
+    const pool = level >= RING_MIN_LEVEL
+      ? [...PENTOMINO_TYPES, RING_TYPE]
+      : PENTOMINO_TYPES;
+    return pool[Math.floor(Math.random() * pool.length)];
+  }
+  return STANDARD_TYPES[Math.floor(Math.random() * STANDARD_TYPES.length)];
+}
+
+function randomPiece() {
+  return makePiece(pickType());
 }
 
 function collide(shape, ox, oy) {
@@ -113,6 +154,8 @@ function clearLines() {
       r++;
     }
   }
+  // A Tetris grants the 1x1 reward piece on the next spawn.
+  if (cleared === 4) pendingReward = true;
   return cleared;
 }
 
@@ -225,11 +268,32 @@ function lockPiece() {
 function spawn() {
   current = next;
   next = randomPiece();
+  holdUsed = false;
   lastMoveWasRotation = false;
   if (collide(current.shape, current.x, current.y)) {
     endGame();
   }
   drawNext();
+  drawHold();
+}
+
+// Park the current piece in the reserve slot; allowed once per piece.
+function holdPiece() {
+  if (holdUsed || paused || gameOver) return;
+  const outgoing = current.type;
+  if (hold === null) {
+    current = next;
+    next = randomPiece();
+    drawNext();
+  } else {
+    current = makePiece(hold);
+  }
+  hold = outgoing;
+  holdUsed = true;
+  drawHold();
+  if (collide(current.shape, current.x, current.y)) {
+    endGame();
+  }
 }
 
 function updateHUD() {
@@ -307,15 +371,27 @@ function drawFlash() {
   ctx.restore();
 }
 
-function drawNext() {
-  const NB = 30;
-  nextCtx.clearRect(0, 0, nextCanvas.width, nextCanvas.height);
-  const shape = next.shape;
-  const offX = Math.floor((4 - shape[0].length) / 2);
-  const offY = Math.floor((4 - shape.length) / 2);
+function drawPreview(context, previewCanvas, shape, alpha) {
+  context.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
+  if (!shape) return;
+  // Keep a 4x4 reference grid, but shrink the blocks if a piece is wider.
+  const cells = Math.max(4, shape.length, shape[0].length);
+  const NB = previewCanvas.width / cells;
+  const offX = Math.floor((cells - shape[0].length) / 2);
+  const offY = Math.floor((cells - shape.length) / 2);
   for (let r = 0; r < shape.length; r++)
     for (let c = 0; c < shape[r].length; c++)
-      drawBlock(nextCtx, offX + c, offY + r, shape[r][c], NB);
+      drawBlock(context, offX + c, offY + r, shape[r][c], NB, alpha);
+}
+
+function drawNext() {
+  drawPreview(nextCtx, nextCanvas, next.shape);
+}
+
+function drawHold() {
+  const shape = hold === null ? null : PIECES[hold];
+  drawPreview(holdCtx, holdCanvas, shape, holdUsed ? 0.35 : 1);
+  holdCanvas.classList.toggle('blocked', holdUsed);
 }
 
 function endGame() {
@@ -368,6 +444,9 @@ function init() {
   dropInterval = 1000;
   dropAccum = 0;
   lastTime = performance.now();
+  hold = null;
+  holdUsed = false;
+  pendingReward = false;
   combo = -1;
   b2b = false;
   lastMoveWasRotation = false;
@@ -406,6 +485,11 @@ document.addEventListener('keydown', e => {
     case 'Space':
       e.preventDefault();
       hardDrop();
+      break;
+    case 'KeyC':
+    case 'ShiftLeft':
+    case 'ShiftRight':
+      holdPiece();
       break;
   }
   updateHUD();
