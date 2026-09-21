@@ -200,6 +200,7 @@ const FLASH_MS = 900;
 // A power-up piece is granted every POWERUP_EVERY cleared lines.
 const POWERUP_EVERY = 10;
 const FREEZE_MS = 5000;
+const DRILL_DEPTH = 3;
 
 // Each effect runs right after the piece is merged, before lines are cleared.
 // `cells` is the list of board cells the piece just wrote.
@@ -262,6 +263,32 @@ const POWERUPS = [
     color: '#80d8ff',
     apply() {
       frozenUntil = performance.now() + FREEZE_MS;
+    },
+  },
+  {
+    id: 'taladro',
+    label: 'Taladro',
+    color: '#ffab40',
+    // Bores straight down: every column the piece occupies loses the
+    // DRILL_DEPTH cells right below it, the other columns stay untouched.
+    apply(cells) {
+      const lowestByColumn = new Map();
+      for (const { r, c } of cells)
+        if (!lowestByColumn.has(c) || lowestByColumn.get(c) < r) lowestByColumn.set(c, r);
+      for (const [c, r] of lowestByColumn)
+        for (let y = r + 1; y <= r + DRILL_DEPTH && y < ROWS; y++) clearCell(y, c);
+    },
+  },
+  {
+    id: 'magnetismo',
+    label: 'Magnetismo',
+    color: '#b388ff',
+    // Pulls every row towards the middle, so the outer columns come out clean
+    // and an I piece finally has a well to drop into.
+    apply() {
+      magnetizeBoard();
+      // The holes moved with the blocks, so pending wildcards are void.
+      wildcards.clear();
     },
   },
 ];
@@ -358,6 +385,8 @@ let hold, holdUsed, pendingReward;
 let combo, b2b, lastMoveWasRotation, flash;
 let linesSincePowerup, pendingPowerup, frozenUntil, wildcards;
 let energy, previewUntil, slowUntil, undoSnapshot, pieceStartScore;
+// Column armed by the Láser focal ability, or null when it is not aiming.
+let laserTarget = null;
 let menuOpen = false;
 let maxCombo;
 let audioCtx = null;
@@ -420,6 +449,21 @@ const ABILITIES = [
     cost: 20,
     available: () => holdUsed,
     run() { holdUsed = false; drawHold(); },
+  },
+  {
+    id: 'mirror',
+    label: 'Espejo',
+    cost: 35,
+    run() { mirrorBoard(); },
+  },
+  {
+    // Arms a column picker instead of firing straight away; aborting the shot
+    // refunds the cost, so only a fired laser is paid for.
+    id: 'laser',
+    label: 'Láser focal',
+    cost: 60,
+    available: () => laserTarget === null,
+    run() { laserTarget = Math.floor(COLS / 2); },
   },
 ];
 
@@ -771,6 +815,73 @@ function useAbility(index) {
   updateHUD();
 }
 
+// Flips the stack horizontally: board[r][c] becomes board[r][COLS - 1 - c].
+function mirrorBoard() {
+  for (let r = 0; r < ROWS; r++) board[r].reverse();
+  wildcards = mirrorKeys(wildcards);
+  if (mode.invisible) invisibleCells = mirrorKeys(invisibleCells);
+  // The falling piece keeps its column, so the flip can bury it; lift it just
+  // enough to fit again.
+  while (collide(current.shape, current.x, current.y) && current.y > -current.shape.length) current.y--;
+  if (collide(current.shape, current.x, current.y)) endGame();
+}
+
+function mirrorKeys(set) {
+  const next = new Set();
+  for (const key of set) next.add(Math.floor(key / COLS) * COLS + (COLS - 1 - (key % COLS)));
+  return next;
+}
+
+// Squeezes the filled cells of every row towards the middle of the board.
+// Hidden cells travel with their block so the invisible mode stays coherent.
+function magnetizeBoard() {
+  const hiding = mode.invisible;
+  const nextInvisible = new Set();
+  for (let r = 0; r < ROWS; r++) {
+    const filled = [];
+    for (let c = 0; c < COLS; c++)
+      if (board[r][c]) filled.push({ value: board[r][c], hidden: hiding && invisibleCells.has(r * COLS + c) });
+    const start = Math.floor((COLS - filled.length) / 2);
+    board[r] = new Array(COLS).fill(0);
+    filled.forEach((cell, i) => {
+      board[r][start + i] = cell.value;
+      if (cell.hidden) nextInvisible.add(r * COLS + start + i);
+    });
+  }
+  if (hiding) invisibleCells = nextInvisible;
+}
+
+// Vaporizes a whole column; the blocks above do not fall, exactly like Rayo.
+function fireLaser(column) {
+  for (let r = 0; r < ROWS; r++) clearCell(r, column);
+  beep(196, 200);
+}
+
+function cancelLaser() {
+  if (laserTarget === null) return;
+  const ability = ABILITIES.find(a => a.id === 'laser');
+  laserTarget = null;
+  energy = Math.min(MAX_ENERGY, energy + ability.cost);
+}
+
+function handleLaserKey(code) {
+  if (code === 'ArrowLeft') laserTarget = Math.max(0, laserTarget - 1);
+  else if (code === 'ArrowRight') laserTarget = Math.min(COLS - 1, laserTarget + 1);
+  else if (code === 'Space' || code === 'Enter') {
+    const column = laserTarget;
+    laserTarget = null;
+    fireLaser(column);
+  } else if (code === 'Escape' || code === 'KeyP') {
+    cancelLaser();
+  }
+}
+
+function columnFromPointer(e) {
+  const rect = canvas.getBoundingClientRect();
+  const column = Math.floor(((e.clientX - rect.left) / rect.width) * COLS);
+  return Math.min(COLS - 1, Math.max(0, column));
+}
+
 function randomGarbageRow() {
   const gap = Math.floor(Math.random() * COLS);
   return Array.from({ length: COLS }, (_, c) => (c === gap ? 0 : Math.floor(Math.random() * 7) + 1));
@@ -822,7 +933,9 @@ function updateHUD() {
   comboEl.textContent = combo > 0 ? `x${combo + 1}` : '-';
   b2bEl.textContent = b2b ? 'SÍ' : '-';
   const frozenLeft = frozenUntil - performance.now();
-  if (frozenLeft > 0) {
+  if (laserTarget !== null) {
+    powerupEl.textContent = `Láser col. ${laserTarget + 1}`;
+  } else if (frozenLeft > 0) {
     powerupEl.textContent = `Congelado ${(frozenLeft / 1000).toFixed(1)}s`;
   } else if (current && current.powerup) {
     powerupEl.textContent = current.powerup.label;
@@ -905,7 +1018,20 @@ function draw() {
     ctx.restore();
   }
 
+  if (laserTarget !== null) drawLaserTarget();
+
   drawFlash();
+}
+
+function drawLaserTarget() {
+  const pulse = 0.2 + 0.18 * Math.sin(performance.now() / 150);
+  ctx.save();
+  ctx.fillStyle = `rgba(255,82,82,${pulse})`;
+  ctx.fillRect(laserTarget * BLOCK, 0, BLOCK, ROWS * BLOCK);
+  ctx.strokeStyle = '#ff5252';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(laserTarget * BLOCK + 1, 1, BLOCK - 2, ROWS * BLOCK - 2);
+  ctx.restore();
 }
 
 function drawPowerupOutline() {
@@ -1352,6 +1478,7 @@ function init(modeId) {
   energy = 0;
   previewUntil = 0;
   slowUntil = 0;
+  laserTarget = null;
   undoSnapshot = null;
   pieceStartScore = 0;
   maxCombo = 0;
@@ -1372,11 +1499,17 @@ function init(modeId) {
 const GAME_KEYS = new Set([
   'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Space',
   'KeyX', 'KeyC', 'KeyP', 'Escape', 'ShiftLeft', 'ShiftRight',
-  'Digit1', 'Digit2', 'Digit3', 'Digit4', 'Digit5',
+  'Digit1', 'Digit2', 'Digit3', 'Digit4', 'Digit5', 'Digit6', 'Digit7', 'Enter',
 ]);
 
 document.addEventListener('keydown', e => {
   if (GAME_KEYS.has(e.code)) e.preventDefault();
+  // While aiming the laser the picker owns every game key, pause included.
+  if (laserTarget !== null && !paused && !gameOver) {
+    handleLaserKey(e.code);
+    updateHUD();
+    return;
+  }
   if (e.code === 'KeyP' || e.code === 'Escape') { togglePause(); return; }
   if (!current || paused || gameOver || menuOpen) return;
   switch (e.code) {
@@ -1412,9 +1545,25 @@ document.addEventListener('keydown', e => {
     case 'Digit3':
     case 'Digit4':
     case 'Digit5':
+    case 'Digit6':
+    case 'Digit7':
       useAbility(Number(e.code.slice(5)) - 1);
       break;
   }
+  updateHUD();
+});
+
+canvas.addEventListener('mousemove', e => {
+  if (laserTarget === null || paused || gameOver) return;
+  laserTarget = columnFromPointer(e);
+  updateHUD();
+});
+
+canvas.addEventListener('click', e => {
+  if (laserTarget === null || paused || gameOver) return;
+  const column = columnFromPointer(e);
+  laserTarget = null;
+  fireLaser(column);
   updateHUD();
 });
 
