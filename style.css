@@ -261,6 +261,13 @@ kbd {
   display: none;
 }
 
+/* The overlay is translucent, so the side panels stay readable through it.
+   This hides a section without collapsing its box, keeping the column from
+   reflowing while the pause menu owns the controls list. */
+.concealed {
+  visibility: hidden;
+}
+
 .overlay {
   position: absolute;
   inset: 0;

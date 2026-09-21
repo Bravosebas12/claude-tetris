@@ -198,6 +198,7 @@ const pauseRestartBtn = document.getElementById('pause-restart-btn');
 const viewControlsBtn = document.getElementById('view-controls-btn');
 const pauseControlsList = document.getElementById('pause-controls-list');
 const startLevelSelect = document.getElementById('start-level-select');
+const sideControlsEl = document.getElementById('side-controls');
 
 let board, current, nextQueue, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId;
 let mode, timeLeft, garbageAccum, invisibleCells, revealUntil;
@@ -824,6 +825,16 @@ function drawHold() {
   drawShapeInSlot(holdCtx, PIECES[hold], 0, 120, holdUsed ? 0.35 : 1);
 }
 
+// The overlay is translucent, so the sidebar controls would still be legible
+// underneath it while paused and make "Ver controles" look like a no-op. The
+// menu conceals them and owns the key list for as long as it is open. Closing
+// the menu always collapses its own list, so it reopens closed next time.
+function setPauseMenuOpen(open) {
+  pauseMenuEl.classList.toggle('hidden', !open);
+  sideControlsEl.classList.toggle('concealed', open);
+  if (!open) pauseControlsList.classList.add('hidden');
+}
+
 function finishGame(title, message) {
   gameOver = true;
   menuOpen = false;
@@ -832,8 +843,7 @@ function finishGame(title, message) {
   overlayScore.textContent = message;
   restartBtn.classList.remove('hidden');
   modeListEl.classList.remove('hidden');
-  pauseMenuEl.classList.add('hidden');
-  pauseControlsList.classList.add('hidden');
+  setPauseMenuOpen(false);
   overlay.classList.remove('hidden');
 }
 
@@ -846,8 +856,7 @@ function togglePause() {
   paused = !paused;
   menuOpen = paused;
   if (!paused) {
-    pauseMenuEl.classList.add('hidden');
-    pauseControlsList.classList.add('hidden');
+    setPauseMenuOpen(false);
     lastTime = performance.now();
     overlay.classList.add('hidden');
     loop(lastTime);
@@ -857,7 +866,7 @@ function togglePause() {
     overlayScore.textContent = '';
     restartBtn.classList.add('hidden');
     modeListEl.classList.add('hidden');
-    pauseMenuEl.classList.remove('hidden');
+    setPauseMenuOpen(true);
     overlay.classList.remove('hidden');
   }
 }
@@ -937,8 +946,7 @@ function showModeSelect() {
   overlayScore.textContent = 'Elige un modo';
   restartBtn.classList.add('hidden');
   modeListEl.classList.remove('hidden');
-  pauseMenuEl.classList.add('hidden');
-  pauseControlsList.classList.add('hidden');
+  setPauseMenuOpen(false);
   overlay.classList.remove('hidden');
 }
 
@@ -980,8 +988,7 @@ function init(modeId) {
   spawn();
   updateHUD();
   startLevelSelect.value = String(startLevel);
-  pauseMenuEl.classList.add('hidden');
-  pauseControlsList.classList.add('hidden');
+  setPauseMenuOpen(false);
   overlay.classList.add('hidden');
   cancelAnimationFrame(animId);
   animId = requestAnimationFrame(loop);
