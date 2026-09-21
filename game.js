@@ -942,7 +942,16 @@ function init(modeId) {
   animId = requestAnimationFrame(loop);
 }
 
+// Arrows and space scroll the page by default, which would drag the board out
+// of view mid-game, so every key the game owns is claimed here.
+const GAME_KEYS = new Set([
+  'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Space',
+  'KeyX', 'KeyC', 'KeyP', 'ShiftLeft', 'ShiftRight',
+  'Digit1', 'Digit2', 'Digit3', 'Digit4', 'Digit5',
+]);
+
 document.addEventListener('keydown', e => {
+  if (GAME_KEYS.has(e.code)) e.preventDefault();
   if (e.code === 'KeyP') { togglePause(); return; }
   if (!current || paused || gameOver) return;
   switch (e.code) {
@@ -966,7 +975,6 @@ document.addEventListener('keydown', e => {
       tryRotate();
       break;
     case 'Space':
-      e.preventDefault();
       hardDrop();
       break;
     case 'KeyC':
