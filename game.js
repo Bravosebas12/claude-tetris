@@ -4,6 +4,10 @@ const COLS = 10;
 const ROWS = 20;
 const BLOCK = 30;
 
+const NUT = 8;  // Nut - agujero central cuenta como relleno para clearLines()
+const HOLE = 9; // centro de la tuerca: celda ocupada pero se dibuja como agujero
+const BOARD_BG = '#1a1a25'; // debe coincidir con el fondo de #board en style.css
+
 const COLORS = [
   null,
   '#4dd0e1', // I - cyan
@@ -13,6 +17,8 @@ const COLORS = [
   '#e57373', // Z - red
   '#7986cb', // J - indigo
   '#ffb74d', // L - orange
+  '#b0bec5', // Nut - gris acero
+  null,      // HOLE - nunca se pinta con este color (ver drawBlock)
 ];
 
 const PIECES = [
@@ -24,6 +30,7 @@ const PIECES = [
   [[5,5,0],[0,5,5],[0,0,0]],                  // Z
   [[6,0,0],[6,6,6],[0,0,0]],                  // J
   [[0,0,7],[7,7,7],[0,0,0]],                  // L
+  [[NUT,NUT,NUT],[NUT,HOLE,NUT],[NUT,NUT,NUT]], // Nut - reto: 3x3 con agujero
 ];
 
 const LINE_SCORES = [0, 100, 300, 500, 800];
@@ -47,7 +54,7 @@ function createBoard() {
 }
 
 function randomPiece() {
-  const type = Math.floor(Math.random() * 7) + 1;
+  const type = Math.floor(Math.random() * (PIECES.length - 1)) + 1;
   const shape = PIECES[type].map(row => [...row]);
   return { type, shape, x: Math.floor(COLS / 2) - Math.floor(shape[0].length / 2), y: 0 };
 }
@@ -146,6 +153,7 @@ function spawn() {
   next = randomPiece();
   if (collide(current.shape, current.x, current.y)) {
     endGame();
+    return;
   }
   drawNext();
 }
@@ -157,7 +165,7 @@ function updateHUD() {
 }
 
 function drawBlock(context, x, y, colorIndex, size, alpha) {
-  if (!colorIndex) return;
+  if (!colorIndex || colorIndex === HOLE) return;
   const color = COLORS[colorIndex];
   context.globalAlpha = alpha ?? 1;
   context.fillStyle = color;
@@ -166,6 +174,34 @@ function drawBlock(context, x, y, colorIndex, size, alpha) {
   context.fillStyle = 'rgba(255,255,255,0.12)';
   context.fillRect(x * size + 1, y * size + 1, size - 2, 4);
   context.globalAlpha = 1;
+}
+
+function drawHole(context, x, y, size, alpha) {
+  const cx = x * size + size / 2;
+  const cy = y * size + size / 2;
+  const radius = size * 0.62;
+  context.globalAlpha = alpha ?? 1;
+  context.fillStyle = BOARD_BG;
+  context.beginPath();
+  context.arc(cx, cy, radius, 0, Math.PI * 2);
+  context.fill();
+  context.strokeStyle = 'rgba(0,0,0,0.35)';
+  context.lineWidth = 1.5;
+  context.stroke();
+  context.globalAlpha = 1;
+}
+
+// Pinta una matriz de pieza/tablero en dos pasadas: primero todos los
+// bloques, luego los agujeros (HOLE), para que el círculo no quede
+// recortado por los bloques vecinos dibujados después.
+function drawMatrix(context, matrix, ox, oy, size, alpha) {
+  for (let r = 0; r < matrix.length; r++)
+    for (let c = 0; c < matrix[r].length; c++)
+      drawBlock(context, ox + c, oy + r, matrix[r][c], size, alpha);
+  for (let r = 0; r < matrix.length; r++)
+    for (let c = 0; c < matrix[r].length; c++)
+      if (matrix[r][c] === HOLE)
+        drawHole(context, ox + c, oy + r, size, alpha);
 }
 
 function drawGrid() {
@@ -190,21 +226,14 @@ function draw() {
   drawGrid();
 
   // board
-  for (let r = 0; r < ROWS; r++)
-    for (let c = 0; c < COLS; c++)
-      drawBlock(ctx, c, r, board[r][c], BLOCK);
+  drawMatrix(ctx, board, 0, 0, BLOCK);
 
   // ghost
   const gy = ghostY();
-  for (let r = 0; r < current.shape.length; r++)
-    for (let c = 0; c < current.shape[r].length; c++)
-      if (current.shape[r][c])
-        drawBlock(ctx, current.x + c, gy + r, current.shape[r][c], BLOCK, 0.2);
+  drawMatrix(ctx, current.shape, current.x, gy, BLOCK, 0.2);
 
   // current piece
-  for (let r = 0; r < current.shape.length; r++)
-    for (let c = 0; c < current.shape[r].length; c++)
-      drawBlock(ctx, current.x + c, current.y + r, current.shape[r][c], BLOCK);
+  drawMatrix(ctx, current.shape, current.x, current.y, BLOCK);
 }
 
 function drawNext() {
@@ -213,14 +242,13 @@ function drawNext() {
   const shape = next.shape;
   const offX = Math.floor((4 - shape[0].length) / 2);
   const offY = Math.floor((4 - shape.length) / 2);
-  for (let r = 0; r < shape.length; r++)
-    for (let c = 0; c < shape[r].length; c++)
-      drawBlock(nextCtx, offX + c, offY + r, shape[r][c], NB);
+  drawMatrix(nextCtx, shape, offX, offY, NB);
 }
 
 function endGame() {
   gameOver = true;
   cancelAnimationFrame(animId);
+  animId = null;
   overlayTitle.textContent = 'GAME OVER';
   overlayScore.textContent = `Puntuación: ${score.toLocaleString()}`;
   overlay.classList.remove('hidden');
@@ -241,6 +269,7 @@ function togglePause() {
 }
 
 function loop(ts) {
+  if (gameOver || paused) return;
   const dt = ts - lastTime;
   lastTime = ts;
   dropAccum += dt;
@@ -250,6 +279,7 @@ function loop(ts) {
       current.y++;
     } else {
       lockPiece();
+      if (gameOver) return;
     }
   }
   draw();
@@ -257,6 +287,7 @@ function loop(ts) {
 }
 
 function init() {
+  cancelAnimationFrame(animId);
   board = createBoard();
   score = 0;
   lines = 0;
@@ -270,7 +301,6 @@ function init() {
   spawn();
   updateHUD();
   overlay.classList.add('hidden');
-  cancelAnimationFrame(animId);
   animId = requestAnimationFrame(loop);
 }
 
