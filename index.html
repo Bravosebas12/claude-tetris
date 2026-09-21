@@ -8,10 +8,13 @@
 </head>
 <body>
   <div class="wrapper">
-    <div class="game-container">
-      <canvas id="board" width="300" height="600"></canvas>
+    <header class="masthead">
+      <h1>TETRIS</h1>
+      <p class="tagline">Power-ups · Combos · Habilidades · Modos de desafío</p>
+    </header>
 
-      <aside class="panel">
+    <div class="game-container">
+      <aside class="panel panel-left">
         <div class="panel-section">
           <span class="label">MODO</span>
           <span class="value small" id="mode">Clásico</span>
@@ -21,30 +24,32 @@
           <span class="value small" id="objective">-</span>
         </div>
 
-        <div class="panel-section">
-          <span class="label">SCORE</span>
-          <span class="value" id="score">0</span>
-        </div>
-        <div class="panel-section">
-          <span class="label">LINES</span>
-          <span class="value" id="lines">0</span>
-        </div>
-        <div class="panel-section">
-          <span class="label">LEVEL</span>
-          <span class="value" id="level">1</span>
+        <div class="stat-grid">
+          <div class="stat">
+            <span class="label">SCORE</span>
+            <span class="value" id="score">0</span>
+          </div>
+          <div class="stat">
+            <span class="label">LINES</span>
+            <span class="value" id="lines">0</span>
+          </div>
+          <div class="stat">
+            <span class="label">LEVEL</span>
+            <span class="value" id="level">1</span>
+          </div>
         </div>
 
-        <div class="panel-section">
+        <div class="stat-row">
           <span class="label">COMBO</span>
-          <span class="value" id="combo">-</span>
+          <span class="value inline" id="combo">-</span>
         </div>
-        <div class="panel-section">
+        <div class="stat-row">
           <span class="label">B2B</span>
-          <span class="value" id="b2b">-</span>
+          <span class="value inline" id="b2b">-</span>
         </div>
-        <div class="panel-section">
+        <div class="stat-row">
           <span class="label">POWER-UP</span>
-          <span class="value small" id="powerup">-</span>
+          <span class="value inline small" id="powerup">-</span>
         </div>
 
         <div class="panel-section">
@@ -57,19 +62,25 @@
           <span class="label">HABILIDADES</span>
           <ul id="ability-list"></ul>
         </div>
+      </aside>
 
-        <div class="panel-section">
-          <span class="label">HOLD</span>
-          <canvas id="hold-canvas" width="120" height="120"></canvas>
-        </div>
+      <canvas id="board" width="300" height="600"></canvas>
 
-        <div class="panel-section">
-          <span class="label">NEXT</span>
-          <canvas id="next-canvas" width="120" height="120"></canvas>
+      <aside class="panel panel-right">
+        <div class="previews">
+          <div class="panel-section">
+            <span class="label">HOLD</span>
+            <canvas id="hold-canvas" width="120" height="120"></canvas>
+          </div>
+
+          <div class="panel-section">
+            <span class="label">NEXT</span>
+            <canvas id="next-canvas" width="120" height="120"></canvas>
+          </div>
         </div>
 
         <div class="panel-section controls">
-          <span class="label">CONTROLS</span>
+          <span class="label">CONTROLES</span>
           <ul>
             <li><kbd>←</kbd><kbd>→</kbd> mover</li>
             <li><kbd>↑</kbd> rotar</li>
