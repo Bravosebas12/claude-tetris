@@ -52,7 +52,7 @@ const overlayScore = document.getElementById('overlay-score');
 const restartBtn = document.getElementById('restart-btn');
 
 let board, current, nextQueue, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId;
-let energy, previewUntil, slowUntil, undoSnapshot, holdUnlocked, hold, holdUsed;
+let energy, previewUntil, slowUntil, undoSnapshot, holdUnlocked, hold, holdUsed, pieceStartScore;
 
 const ABILITIES = [
   {
@@ -190,11 +190,12 @@ function softDrop() {
   }
 }
 
-// One-step rollback support for the Deshacer ability.
+// One-step rollback support for the Deshacer ability. The score is the one the
+// piece started with, so undoing also refunds its soft- and hard-drop points.
 function takeSnapshot() {
   undoSnapshot = {
     board: board.map(row => [...row]),
-    score,
+    score: pieceStartScore,
     lines,
     level,
     piece: clonePiece(current),
@@ -212,6 +213,7 @@ function restoreSnapshot() {
   current = clonePiece(undoSnapshot.piece);
   nextQueue = undoSnapshot.queue.map(clonePiece);
   undoSnapshot = null;
+  pieceStartScore = score;
   dropAccum = 0;
   drawNext();
   updateHUD();
@@ -227,6 +229,7 @@ function lockPiece() {
 function spawn() {
   current = nextQueue.shift();
   nextQueue.push(randomPiece());
+  pieceStartScore = score;
   holdUsed = false;
   if (collide(current.shape, current.x, current.y)) {
     endGame();
@@ -438,6 +441,7 @@ function init() {
   previewUntil = 0;
   slowUntil = 0;
   undoSnapshot = null;
+  pieceStartScore = 0;
   holdUnlocked = false;
   hold = null;
   holdUsed = false;
