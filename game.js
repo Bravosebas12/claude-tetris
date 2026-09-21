@@ -28,28 +28,82 @@ const PIECES = [
 
 const LINE_SCORES = [0, 100, 300, 500, 800];
 
+const QUEUE_SIZE = 5;
+const MAX_ENERGY = 100;
+const ENERGY_PER_LINE = 15;
+const PREVIEW_MS = 15000;
+const SLOW_MS = 10000;
+
 const canvas = document.getElementById('board');
 const ctx = canvas.getContext('2d');
 const nextCanvas = document.getElementById('next-canvas');
 const nextCtx = nextCanvas.getContext('2d');
+const holdCanvas = document.getElementById('hold-canvas');
+const holdCtx = holdCanvas.getContext('2d');
 const scoreEl = document.getElementById('score');
 const linesEl = document.getElementById('lines');
 const levelEl = document.getElementById('level');
+const energyFillEl = document.getElementById('energy-fill');
+const energyValueEl = document.getElementById('energy-value');
+const abilityListEl = document.getElementById('ability-list');
 const overlay = document.getElementById('overlay');
 const overlayTitle = document.getElementById('overlay-title');
 const overlayScore = document.getElementById('overlay-score');
 const restartBtn = document.getElementById('restart-btn');
 
-let board, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId;
+let board, current, nextQueue, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId;
+let energy, previewUntil, slowUntil, undoSnapshot, holdUnlocked, hold, holdUsed;
+
+const ABILITIES = [
+  {
+    id: 'preview',
+    label: 'Ver 5 siguientes',
+    cost: 30,
+    run() { previewUntil = performance.now() + PREVIEW_MS; drawNext(); },
+  },
+  {
+    id: 'swap',
+    label: 'Cambiar pieza',
+    cost: 25,
+    run() { spawn(); },
+  },
+  {
+    id: 'slow',
+    label: 'Ralentizar 10s',
+    cost: 40,
+    run() { slowUntil = performance.now() + SLOW_MS; },
+  },
+  {
+    id: 'undo',
+    label: 'Deshacer',
+    cost: 50,
+    available: () => undoSnapshot !== null,
+    run() { restoreSnapshot(); },
+  },
+  {
+    id: 'hold',
+    label: 'Activar hold (C)',
+    cost: 20,
+    available: () => !holdUnlocked,
+    run() { holdUnlocked = true; drawHold(); },
+  },
+];
 
 function createBoard() {
   return Array.from({ length: ROWS }, () => new Array(COLS).fill(0));
 }
 
-function randomPiece() {
-  const type = Math.floor(Math.random() * 7) + 1;
+function makePiece(type) {
   const shape = PIECES[type].map(row => [...row]);
   return { type, shape, x: Math.floor(COLS / 2) - Math.floor(shape[0].length / 2), y: 0 };
+}
+
+function randomPiece() {
+  return makePiece(Math.floor(Math.random() * 7) + 1);
+}
+
+function clonePiece(piece) {
+  return { type: piece.type, shape: piece.shape.map(row => [...row]), x: piece.x, y: piece.y };
 }
 
 function collide(shape, ox, oy) {
@@ -108,6 +162,7 @@ function clearLines() {
     score += (LINE_SCORES[cleared] || 0) * level;
     level = Math.floor(lines / 10) + 1;
     dropInterval = Math.max(100, 1000 - (level - 1) * 90);
+    energy = Math.min(MAX_ENERGY, energy + cleared * ENERGY_PER_LINE);
     updateHUD();
   }
 }
@@ -135,25 +190,91 @@ function softDrop() {
   }
 }
 
+// One-step rollback support for the Deshacer ability.
+function takeSnapshot() {
+  undoSnapshot = {
+    board: board.map(row => [...row]),
+    score,
+    lines,
+    level,
+    piece: clonePiece(current),
+    queue: nextQueue.map(clonePiece),
+  };
+}
+
+function restoreSnapshot() {
+  if (!undoSnapshot) return;
+  board = undoSnapshot.board.map(row => [...row]);
+  score = undoSnapshot.score;
+  lines = undoSnapshot.lines;
+  level = undoSnapshot.level;
+  dropInterval = Math.max(100, 1000 - (level - 1) * 90);
+  current = clonePiece(undoSnapshot.piece);
+  nextQueue = undoSnapshot.queue.map(clonePiece);
+  undoSnapshot = null;
+  dropAccum = 0;
+  drawNext();
+  updateHUD();
+}
+
 function lockPiece() {
+  takeSnapshot();
   merge();
   clearLines();
   spawn();
 }
 
 function spawn() {
-  current = next;
-  next = randomPiece();
+  current = nextQueue.shift();
+  nextQueue.push(randomPiece());
+  holdUsed = false;
   if (collide(current.shape, current.x, current.y)) {
     endGame();
   }
   drawNext();
+  drawHold();
+}
+
+// Available only after the hold ability has been bought; once per piece.
+function holdPiece() {
+  if (!holdUnlocked || holdUsed || paused || gameOver) return;
+  const outgoing = current.type;
+  if (hold === null) {
+    current = nextQueue.shift();
+    nextQueue.push(randomPiece());
+    drawNext();
+  } else {
+    current = makePiece(hold);
+  }
+  hold = outgoing;
+  holdUsed = true;
+  drawHold();
+  if (collide(current.shape, current.x, current.y)) {
+    endGame();
+  }
+}
+
+function useAbility(index) {
+  const ability = ABILITIES[index];
+  if (!ability || paused || gameOver) return;
+  if (energy < ability.cost) return;
+  if (ability.available && !ability.available()) return;
+  energy -= ability.cost;
+  ability.run();
+  updateHUD();
 }
 
 function updateHUD() {
   scoreEl.textContent = score.toLocaleString();
   linesEl.textContent = lines;
   levelEl.textContent = level;
+  energyFillEl.style.width = `${energy}%`;
+  energyValueEl.textContent = `${energy}%`;
+  for (const item of abilityListEl.children) {
+    const ability = ABILITIES[Number(item.dataset.index)];
+    const usable = energy >= ability.cost && (!ability.available || ability.available());
+    item.classList.toggle('affordable', usable);
+  }
 }
 
 function drawBlock(context, x, y, colorIndex, size, alpha) {
@@ -205,17 +326,50 @@ function draw() {
   for (let r = 0; r < current.shape.length; r++)
     for (let c = 0; c < current.shape[r].length; c++)
       drawBlock(ctx, current.x + c, current.y + r, current.shape[r][c], BLOCK);
+
+  if (performance.now() < slowUntil) {
+    ctx.save();
+    ctx.fillStyle = 'rgba(122,162,247,0.18)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.restore();
+  }
+}
+
+// Draws one shape inside a square slot of `size` pixels at (0, offsetY).
+function drawShapeInSlot(context, shape, offsetY, size) {
+  const NB = size / 4;
+  const offX = (4 - shape[0].length) / 2;
+  const offY = (4 - shape.length) / 2;
+  for (let r = 0; r < shape.length; r++)
+    for (let c = 0; c < shape[r].length; c++) {
+      if (!shape[r][c]) continue;
+      const x = (offX + c) * NB;
+      const y = offsetY + (offY + r) * NB;
+      context.fillStyle = COLORS[shape[r][c]];
+      context.fillRect(x + 1, y + 1, NB - 2, NB - 2);
+      context.fillStyle = 'rgba(255,255,255,0.12)';
+      context.fillRect(x + 1, y + 1, NB - 2, 3);
+    }
 }
 
 function drawNext() {
-  const NB = 30;
+  const showAll = performance.now() < previewUntil;
+  const count = showAll ? QUEUE_SIZE : 1;
+  const slot = showAll ? 60 : 120;
+  const height = slot * count;
+  if (nextCanvas.height !== height) nextCanvas.height = height;
   nextCtx.clearRect(0, 0, nextCanvas.width, nextCanvas.height);
-  const shape = next.shape;
-  const offX = Math.floor((4 - shape[0].length) / 2);
-  const offY = Math.floor((4 - shape.length) / 2);
-  for (let r = 0; r < shape.length; r++)
-    for (let c = 0; c < shape[r].length; c++)
-      drawBlock(nextCtx, offX + c, offY + r, shape[r][c], NB);
+  for (let i = 0; i < count; i++)
+    drawShapeInSlot(nextCtx, nextQueue[i].shape, i * slot, slot);
+}
+
+function drawHold() {
+  holdCtx.clearRect(0, 0, holdCanvas.width, holdCanvas.height);
+  holdCanvas.classList.toggle('locked', !holdUnlocked);
+  if (!holdUnlocked || hold === null) return;
+  holdCtx.globalAlpha = holdUsed ? 0.35 : 1;
+  drawShapeInSlot(holdCtx, PIECES[hold], 0, 120);
+  holdCtx.globalAlpha = 1;
 }
 
 function endGame() {
@@ -245,7 +399,8 @@ function loop(ts) {
   const dt = ts - lastTime;
   lastTime = ts;
   dropAccum += dt;
-  if (dropAccum >= dropInterval) {
+  const effectiveInterval = ts < slowUntil ? dropInterval * 2 : dropInterval;
+  if (dropAccum >= effectiveInterval) {
     dropAccum = 0;
     if (!collide(current.shape, current.x, current.y + 1)) {
       current.y++;
@@ -254,8 +409,19 @@ function loop(ts) {
     }
   }
   draw();
+  if (ts > previewUntil && nextCanvas.height !== 120) drawNext();
   if (gameOver) return;
   animId = requestAnimationFrame(loop);
+}
+
+function buildAbilityList() {
+  abilityListEl.innerHTML = '';
+  ABILITIES.forEach((ability, i) => {
+    const li = document.createElement('li');
+    li.dataset.index = String(i);
+    li.innerHTML = `<kbd>${i + 1}</kbd><span>${ability.label}</span><em>${ability.cost}</em>`;
+    abilityListEl.appendChild(li);
+  });
 }
 
 function init() {
@@ -268,7 +434,15 @@ function init() {
   dropInterval = 1000;
   dropAccum = 0;
   lastTime = performance.now();
-  next = randomPiece();
+  energy = 0;
+  previewUntil = 0;
+  slowUntil = 0;
+  undoSnapshot = null;
+  holdUnlocked = false;
+  hold = null;
+  holdUsed = false;
+  nextCanvas.height = 120;
+  nextQueue = Array.from({ length: QUEUE_SIZE }, () => randomPiece());
   spawn();
   updateHUD();
   overlay.classList.add('hidden');
@@ -297,10 +471,23 @@ document.addEventListener('keydown', e => {
       e.preventDefault();
       hardDrop();
       break;
+    case 'KeyC':
+    case 'ShiftLeft':
+    case 'ShiftRight':
+      holdPiece();
+      break;
+    case 'Digit1':
+    case 'Digit2':
+    case 'Digit3':
+    case 'Digit4':
+    case 'Digit5':
+      useAbility(Number(e.code.slice(5)) - 1);
+      break;
   }
   updateHUD();
 });
 
 restartBtn.addEventListener('click', init);
 
+buildAbilityList();
 init();
