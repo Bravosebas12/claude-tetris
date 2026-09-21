@@ -163,3 +163,9 @@ kbd {
 #hold-canvas.blocked {
   opacity: 0.55;
 }
+
+/* ---- Power-ups ---- */
+.value.small {
+  font-size: 15px;
+  color: #ea80fc;
+}
