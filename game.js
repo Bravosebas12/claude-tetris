@@ -47,6 +47,11 @@ const PIECES = [
 ];
 
 const LINE_SCORES = [0, 100, 300, 500, 800];
+const COMBO_BONUS = 50;
+const TSPIN_BONUS = 400;
+const B2B_MULTIPLIER = 1.5;
+const PERFECT_CLEAR_BONUS = 2000;
+const FLASH_MS = 900;
 
 const canvas = document.getElementById('board');
 const ctx = canvas.getContext('2d');
@@ -61,9 +66,13 @@ const overlay = document.getElementById('overlay');
 const overlayTitle = document.getElementById('overlay-title');
 const overlayScore = document.getElementById('overlay-score');
 const restartBtn = document.getElementById('restart-btn');
+const comboEl = document.getElementById('combo');
+const b2bEl = document.getElementById('b2b');
 
 let board, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId;
 let hold, holdUsed, pendingReward;
+let combo, b2b, lastMoveWasRotation, flash;
+let audioCtx = null;
 
 function createBoard() {
   return Array.from({ length: ROWS }, () => new Array(COLS).fill(0));
@@ -122,6 +131,7 @@ function tryRotate() {
     if (!collide(rotated, current.x + kick, current.y)) {
       current.shape = rotated;
       current.x += kick;
+      lastMoveWasRotation = true;
       return;
     }
   }
@@ -144,14 +154,82 @@ function clearLines() {
       r++;
     }
   }
-  if (cleared) {
-    if (cleared === 4) pendingReward = true;
-    lines += cleared;
-    score += (LINE_SCORES[cleared] || 0) * level;
-    level = Math.floor(lines / 10) + 1;
-    dropInterval = Math.max(100, 1000 - (level - 1) * 90);
-    updateHUD();
+  // A Tetris grants the 1x1 reward piece on the next spawn.
+  if (cleared === 4) pendingReward = true;
+  return cleared;
+}
+
+// The T-spin test runs before the piece is merged into the board.
+function detectTSpin() {
+  if (current.type !== 3 || !lastMoveWasRotation) return false;
+  const corners = [[0, 0], [2, 0], [0, 2], [2, 2]];
+  let blocked = 0;
+  for (const [dc, dr] of corners) {
+    const x = current.x + dc;
+    const y = current.y + dr;
+    if (x < 0 || x >= COLS || y >= ROWS) { blocked++; continue; }
+    if (y >= 0 && board[y][x]) blocked++;
   }
+  return blocked >= 3;
+}
+
+function isBoardEmpty() {
+  return board.every(row => row.every(v => v === 0));
+}
+
+function setFlash(text) {
+  flash = { text, expiresAt: performance.now() + FLASH_MS };
+}
+
+// Short synthesized blip; no audio assets, no dependencies.
+function beep(freq, ms) {
+  try {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'square';
+    osc.frequency.value = freq;
+    gain.gain.value = 0.04;
+    osc.connect(gain).connect(audioCtx.destination);
+    osc.start();
+    osc.stop(audioCtx.currentTime + ms / 1000);
+  } catch (err) {
+    // Audio is a nicety; never let it break the game loop.
+  }
+}
+
+function applyScore(cleared, tSpin) {
+  if (!cleared) {
+    combo = -1;
+    if (tSpin) setFlash('T-SPIN');
+    updateHUD();
+    return;
+  }
+
+  const difficult = cleared === 4 || tSpin;
+  let gained = (LINE_SCORES[cleared] || 0) * level;
+  if (tSpin) gained += TSPIN_BONUS * cleared * level;
+  if (difficult && b2b) gained *= B2B_MULTIPLIER;
+
+  combo++;
+  if (combo > 0) gained += COMBO_BONUS * combo * level;
+
+  lines += cleared;
+  level = Math.floor(lines / 10) + 1;
+  dropInterval = Math.max(100, 1000 - (level - 1) * 90);
+
+  const perfect = isBoardEmpty();
+  if (perfect) gained += PERFECT_CLEAR_BONUS * level;
+
+  score += Math.round(gained);
+  b2b = difficult;
+
+  if (perfect) { setFlash('PERFECT CLEAR'); beep(1046, 220); }
+  else if (tSpin) { setFlash('T-SPIN'); beep(784, 160); }
+  else if (cleared === 4) { setFlash('TETRIS'); beep(659, 160); }
+  else if (combo > 0) { setFlash(`COMBO x${combo + 1}`); beep(440 + combo * 40, 110); }
+
+  updateHUD();
 }
 
 function ghostY() {
@@ -164,6 +242,7 @@ function hardDrop() {
   const gy = ghostY();
   score += (gy - current.y) * 2;
   current.y = gy;
+  lastMoveWasRotation = false;
   lockPiece();
 }
 
@@ -171,6 +250,7 @@ function softDrop() {
   if (!collide(current.shape, current.x, current.y + 1)) {
     current.y++;
     score += 1;
+    lastMoveWasRotation = false;
     updateHUD();
   } else {
     lockPiece();
@@ -178,8 +258,10 @@ function softDrop() {
 }
 
 function lockPiece() {
+  const tSpin = detectTSpin();
   merge();
-  clearLines();
+  const cleared = clearLines();
+  applyScore(cleared, tSpin);
   spawn();
 }
 
@@ -187,6 +269,7 @@ function spawn() {
   current = next;
   next = randomPiece();
   holdUsed = false;
+  lastMoveWasRotation = false;
   if (collide(current.shape, current.x, current.y)) {
     endGame();
   }
@@ -217,6 +300,8 @@ function updateHUD() {
   scoreEl.textContent = score.toLocaleString();
   linesEl.textContent = lines;
   levelEl.textContent = level;
+  comboEl.textContent = combo > 0 ? `x${combo + 1}` : '-';
+  b2bEl.textContent = b2b ? 'SÍ' : '-';
 }
 
 function drawBlock(context, x, y, colorIndex, size, alpha) {
@@ -268,6 +353,22 @@ function draw() {
   for (let r = 0; r < current.shape.length; r++)
     for (let c = 0; c < current.shape[r].length; c++)
       drawBlock(ctx, current.x + c, current.y + r, current.shape[r][c], BLOCK);
+
+  drawFlash();
+}
+
+function drawFlash() {
+  if (!flash) return;
+  const remaining = flash.expiresAt - performance.now();
+  if (remaining <= 0) { flash = null; return; }
+  ctx.save();
+  ctx.globalAlpha = Math.min(1, remaining / FLASH_MS);
+  ctx.fillStyle = '#ffd54f';
+  ctx.font = '700 28px system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(flash.text, canvas.width / 2, canvas.height / 2);
+  ctx.restore();
 }
 
 function drawPreview(context, previewCanvas, shape, alpha) {
@@ -346,6 +447,10 @@ function init() {
   hold = null;
   holdUsed = false;
   pendingReward = false;
+  combo = -1;
+  b2b = false;
+  lastMoveWasRotation = false;
+  flash = null;
   next = randomPiece();
   spawn();
   updateHUD();
@@ -359,10 +464,16 @@ document.addEventListener('keydown', e => {
   if (paused || gameOver) return;
   switch (e.code) {
     case 'ArrowLeft':
-      if (!collide(current.shape, current.x - 1, current.y)) current.x--;
+      if (!collide(current.shape, current.x - 1, current.y)) {
+        current.x--;
+        lastMoveWasRotation = false;
+      }
       break;
     case 'ArrowRight':
-      if (!collide(current.shape, current.x + 1, current.y)) current.x++;
+      if (!collide(current.shape, current.x + 1, current.y)) {
+        current.x++;
+        lastMoveWasRotation = false;
+      }
       break;
     case 'ArrowDown':
       softDrop();
