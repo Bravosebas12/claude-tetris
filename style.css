@@ -257,8 +257,11 @@ kbd {
 }
 
 /* ---- Overlay ---- */
+/* A utility class has the same specificity as the component rules below, so
+   without !important any later `display` declaration silently wins and the
+   element stays on screen while JS believes it is hidden. */
 .hidden {
-  display: none;
+  display: none !important;
 }
 
 /* The overlay is translucent, so the side panels stay readable through it.
@@ -277,10 +280,6 @@ kbd {
   background: rgba(10, 10, 20, 0.78);
   backdrop-filter: blur(4px);
   border-radius: 4px;
-}
-
-.overlay.hidden {
-  display: none;
 }
 
 .overlay-box {
