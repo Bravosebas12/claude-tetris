@@ -13,7 +13,22 @@ const COLORS = [
   '#e57373', // Z - red
   '#7986cb', // J - indigo
   '#ffb74d', // L - orange
+  '#4db6ac', // + pentomino - teal
+  '#f06292', // U pentomino - pink
+  '#9575cd', // Y pentomino - violet
+  '#fff176', // mono reward - bright yellow
+  '#90a4ae', // hollow ring - blue grey
 ];
+
+// Standard tetrominoes are types 1..7; everything above is a non-standard piece.
+const STANDARD_TYPES = [1, 2, 3, 4, 5, 6, 7];
+const PENTOMINO_TYPES = [8, 9, 10];
+const MONO_TYPE = 11;
+const RING_TYPE = 12;
+// Chance of drawing a non-standard piece instead of a tetromino.
+const EXTRA_PIECE_CHANCE = 0.08;
+// The hollow ring only shows up once the player is warmed up.
+const RING_MIN_LEVEL = 3;
 
 const PIECES = [
   null,
@@ -24,6 +39,11 @@ const PIECES = [
   [[5,5,0],[0,5,5],[0,0,0]],                  // Z
   [[6,0,0],[6,6,6],[0,0,0]],                  // J
   [[0,0,7],[7,7,7],[0,0,0]],                  // L
+  [[0,8,0],[8,8,8],[0,8,0]],                  // + pentomino
+  [[9,0,9],[9,9,9],[0,0,0]],                  // U pentomino
+  [[0,10,0,0],[10,10,0,0],[0,10,0,0],[0,10,0,0]], // Y pentomino
+  [[11]],                                      // mono (Tetris reward)
+  [[12,12,12],[12,0,12],[12,12,12]],           // hollow ring (challenge)
 ];
 
 const LINE_SCORES = [0, 100, 300, 500, 800];
@@ -43,7 +63,7 @@ const overlayScore = document.getElementById('overlay-score');
 const restartBtn = document.getElementById('restart-btn');
 
 let board, current, next, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId;
-let hold, holdUsed;
+let hold, holdUsed, pendingReward;
 
 function createBoard() {
   return Array.from({ length: ROWS }, () => new Array(COLS).fill(0));
@@ -54,8 +74,23 @@ function makePiece(type) {
   return { type, shape, x: Math.floor(COLS / 2) - Math.floor(shape[0].length / 2), y: 0 };
 }
 
+function pickType() {
+  // A Tetris grants the 1x1 block on the very next piece.
+  if (pendingReward) {
+    pendingReward = false;
+    return MONO_TYPE;
+  }
+  if (Math.random() < EXTRA_PIECE_CHANCE) {
+    const pool = level >= RING_MIN_LEVEL
+      ? [...PENTOMINO_TYPES, RING_TYPE]
+      : PENTOMINO_TYPES;
+    return pool[Math.floor(Math.random() * pool.length)];
+  }
+  return STANDARD_TYPES[Math.floor(Math.random() * STANDARD_TYPES.length)];
+}
+
 function randomPiece() {
-  return makePiece(Math.floor(Math.random() * 7) + 1);
+  return makePiece(pickType());
 }
 
 function collide(shape, ox, oy) {
@@ -110,6 +145,7 @@ function clearLines() {
     }
   }
   if (cleared) {
+    if (cleared === 4) pendingReward = true;
     lines += cleared;
     score += (LINE_SCORES[cleared] || 0) * level;
     level = Math.floor(lines / 10) + 1;
@@ -235,11 +271,13 @@ function draw() {
 }
 
 function drawPreview(context, previewCanvas, shape, alpha) {
-  const NB = 30;
   context.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
   if (!shape) return;
-  const offX = Math.floor((4 - shape[0].length) / 2);
-  const offY = Math.floor((4 - shape.length) / 2);
+  // Keep a 4x4 reference grid, but shrink the blocks if a piece is wider.
+  const cells = Math.max(4, shape.length, shape[0].length);
+  const NB = previewCanvas.width / cells;
+  const offX = Math.floor((cells - shape[0].length) / 2);
+  const offY = Math.floor((cells - shape.length) / 2);
   for (let r = 0; r < shape.length; r++)
     for (let c = 0; c < shape[r].length; c++)
       drawBlock(context, offX + c, offY + r, shape[r][c], NB, alpha);
@@ -307,6 +345,7 @@ function init() {
   lastTime = performance.now();
   hold = null;
   holdUsed = false;
+  pendingReward = false;
   next = randomPiece();
   spawn();
   updateHUD();
