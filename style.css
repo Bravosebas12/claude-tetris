@@ -151,6 +151,19 @@ kbd {
   background: #9bbdff;
 }
 
+/* ---- Hold ---- */
+#hold-canvas {
+  display: block;
+  border: 1px solid #2a2a3a;
+  background: #1a1a25;
+  border-radius: 4px;
+  transition: opacity 0.15s;
+}
+
+#hold-canvas.blocked {
+  opacity: 0.55;
+}
+
 /* ---- Power-ups ---- */
 .value.small {
   font-size: 15px;
