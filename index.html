@@ -105,6 +105,20 @@
         <p id="overlay-title">GAME OVER</p>
         <p id="overlay-score"></p>
         <ul id="mode-list" class="mode-list"></ul>
+
+        <div id="records" class="records hidden">
+          <div class="records-header">
+            <span class="label">RECORDS</span>
+            <span class="records-bests" id="records-bests"></span>
+          </div>
+          <ol id="records-list" class="records-list"></ol>
+          <div id="records-save" class="records-save hidden">
+            <input id="records-name-input" type="text" maxlength="12" placeholder="Tu nombre" autocomplete="off" />
+            <button id="records-save-btn">Guardar</button>
+          </div>
+          <button id="records-reset-btn" class="records-reset">Resetear records</button>
+        </div>
+
         <button id="restart-btn">Reiniciar</button>
 
         <div id="pause-menu" class="pause-menu hidden">

@@ -462,3 +462,126 @@ kbd {
   align-items: center;
   gap: 4px;
 }
+
+/* ---- Records locales ---- */
+.records {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: min(420px, 80vw);
+  max-height: 220px;
+}
+
+.records-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.records-bests {
+  font-size: 10px;
+  color: #777795;
+  font-family: 'Courier New', Courier, monospace;
+}
+
+.records-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  overflow-y: auto;
+}
+
+.records-list li {
+  display: grid;
+  grid-template-columns: 20px 1fr auto;
+  gap: 8px;
+  align-items: center;
+  padding: 5px 8px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font-size: 11px;
+  text-align: left;
+}
+
+.records-list li.records-new {
+  border-color: var(--accent);
+  background: #202038;
+}
+
+.records-empty {
+  grid-template-columns: 1fr !important;
+  color: #777795;
+  text-align: center !important;
+  justify-items: center;
+}
+
+.records-name {
+  font-weight: 700;
+  color: #e0e0e0;
+}
+
+.records-score {
+  font-family: 'Courier New', Courier, monospace;
+  color: var(--accent);
+}
+
+.records-meta {
+  grid-column: 1 / -1;
+  font-size: 9px;
+  color: #777795;
+}
+
+.records-save {
+  display: flex;
+  gap: 6px;
+}
+
+.records-save.hidden {
+  display: none;
+}
+
+#records-name-input {
+  flex: 1;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 7px 9px;
+  color: #e0e0e0;
+  font-family: inherit;
+  font-size: 12px;
+}
+
+#records-name-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+#records-save-btn {
+  background: var(--accent);
+  color: #0f0f17;
+  border: none;
+  border-radius: 6px;
+  padding: 7px 14px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.records-reset {
+  background: none;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: #777795;
+  padding: 6px 12px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.records-reset:hover {
+  border-color: #e57373;
+  color: #e57373;
+}
