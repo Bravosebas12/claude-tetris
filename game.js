@@ -4,21 +4,165 @@ const COLS = 10;
 const ROWS = 20;
 const BLOCK = 30;
 
-const COLORS = [
-  null,
-  '#4dd0e1', // I - cyan
-  '#ffd54f', // O - yellow
-  '#ba68c8', // T - purple
-  '#81c784', // S - green
-  '#e57373', // Z - red
-  '#7986cb', // J - indigo
-  '#ffb74d', // L - orange
-  '#4db6ac', // + pentomino - teal
-  '#f06292', // U pentomino - pink
-  '#9575cd', // Y pentomino - violet
-  '#fff176', // mono reward - bright yellow
-  '#90a4ae', // hollow ring - blue grey
-];
+// Each skin owns its palette (12 color indices, index 0 unused) plus its own
+// block-drawing routine. `drawBlock(context, x, y, colorIndex, size, alpha)`
+// draws one cell at grid coordinates (x, y) — `x * size`/`y * size` pixels —
+// so both the board (size = BLOCK) and the preview slots (size = NB) share it.
+const SKINS = {
+  retro: {
+    id: 'retro',
+    label: 'Retro',
+    theme: 'retro',
+    gridColor: '#22222e',
+    colors: [
+      null,
+      '#4dd0e1', // I - cyan
+      '#ffd54f', // O - yellow
+      '#ba68c8', // T - purple
+      '#81c784', // S - green
+      '#e57373', // Z - red
+      '#7986cb', // J - indigo
+      '#ffb74d', // L - orange
+      '#4db6ac', // + pentomino - teal
+      '#f06292', // U pentomino - pink
+      '#9575cd', // Y pentomino - violet
+      '#fff176', // mono reward - bright yellow
+      '#90a4ae', // hollow ring - blue grey
+    ],
+    // Flat fill with a soft top highlight — the historical look, kept as the
+    // regression baseline for the other skins.
+    drawBlock(context, x, y, colorIndex, size, alpha) {
+      const px = x * size + 1, py = y * size + 1, s = size - 2;
+      context.globalAlpha = alpha;
+      context.fillStyle = this.colors[colorIndex];
+      context.fillRect(px, py, s, s);
+      context.fillStyle = 'rgba(255,255,255,0.12)';
+      context.fillRect(px, py, s, 4);
+      context.globalAlpha = 1;
+    },
+  },
+  neon: {
+    id: 'neon',
+    label: 'Neón',
+    theme: 'neon',
+    gridColor: '#1a2a3a',
+    colors: [
+      null,
+      '#00e5ff', // I - cyan
+      '#ffea00', // O - yellow
+      '#e040fb', // T - purple
+      '#00e676', // S - green
+      '#ff1744', // Z - red
+      '#536dfe', // J - indigo
+      '#ff9100', // L - orange
+      '#1de9b6', // + pentomino - teal
+      '#f50057', // U pentomino - pink
+      '#7c4dff', // Y pentomino - violet
+      '#ffff00', // mono reward - bright yellow
+      '#b0bec5', // hollow ring - blue grey
+    ],
+    // Dark fill with a glowing outline. `save()/restore()` keeps the shadow
+    // state from leaking into the flash text or the power-up outline.
+    drawBlock(context, x, y, colorIndex, size, alpha) {
+      const color = this.colors[colorIndex];
+      const px = x * size + 1, py = y * size + 1, s = size - 2;
+      context.save();
+      context.globalAlpha = alpha;
+      context.shadowBlur = size * 0.6;
+      context.shadowColor = color;
+      context.fillStyle = 'rgba(8,10,20,0.9)';
+      context.fillRect(px, py, s, s);
+      context.shadowBlur = 0;
+      context.strokeStyle = color;
+      context.lineWidth = 2;
+      context.strokeRect(px + 1, py + 1, Math.max(0, s - 2), Math.max(0, s - 2));
+      context.restore();
+    },
+  },
+  pastel: {
+    id: 'pastel',
+    label: 'Pastel',
+    theme: 'pastel',
+    gridColor: '#dcd6e8',
+    colors: [
+      null,
+      '#a8dee6', // I - cyan
+      '#f3e2a0', // O - yellow
+      '#d7b6dd', // T - purple
+      '#b8dcb0', // S - green
+      '#eab3ae', // Z - red
+      '#b6bfe6', // J - indigo
+      '#f0c9a0', // L - orange
+      '#a6d9cd', // + pentomino - teal
+      '#f0bcd0', // U pentomino - pink
+      '#c7bce6', // Y pentomino - violet
+      '#f5eeb0', // mono reward - bright yellow
+      '#c6cdd2', // hollow ring - blue grey
+    ],
+    // Soft, desaturated fill with rounded corners; falls back to a square
+    // fillRect when the context has no roundRect support.
+    drawBlock(context, x, y, colorIndex, size, alpha) {
+      const px = x * size + 1, py = y * size + 1, s = size - 2;
+      context.globalAlpha = alpha;
+      context.fillStyle = this.colors[colorIndex];
+      const radius = Math.min(5, s / 3);
+      if (typeof context.roundRect === 'function') {
+        context.beginPath();
+        context.roundRect(px, py, s, s, radius);
+        context.fill();
+      } else {
+        context.fillRect(px, py, s, s);
+      }
+      context.globalAlpha = 1;
+    },
+  },
+  pixel: {
+    id: 'pixel',
+    label: 'Pixel',
+    theme: 'pixel',
+    gridColor: '#33333f',
+    // Shares the retro palette on purpose — only the texture differs — kept
+    // as a live reference so the two never drift apart.
+    colors: null,
+    // Flat fill plus a cheap two-rect checker texture on top, at low alpha so
+    // it reads as a dither pattern without a per-pixel loop.
+    drawBlock(context, x, y, colorIndex, size, alpha) {
+      const px = x * size + 1, py = y * size + 1, s = size - 2;
+      context.globalAlpha = alpha;
+      context.fillStyle = this.colors[colorIndex];
+      context.fillRect(px, py, s, s);
+      context.fillStyle = 'rgba(0,0,0,0.2)';
+      const half = s / 2;
+      context.fillRect(px, py, half, half);
+      context.fillRect(px + half, py + half, s - half, s - half);
+      context.globalAlpha = 1;
+    },
+  },
+};
+
+// pixel intentionally reuses retro's palette verbatim — only the texture differs.
+SKINS.pixel.colors = SKINS.retro.colors;
+
+const SKIN_STORAGE_KEY = 'tetris.skin';
+
+function loadSkin() {
+  try {
+    const id = localStorage.getItem(SKIN_STORAGE_KEY);
+    return SKINS[id] ? id : 'retro';
+  } catch (err) {
+    return 'retro';
+  }
+}
+
+function saveSkin(id) {
+  try {
+    localStorage.setItem(SKIN_STORAGE_KEY, id);
+  } catch (err) {
+    // Storage may be unavailable (private mode, quota); the skin just won't persist.
+  }
+}
+
+let activeSkin = SKINS[loadSkin()];
 
 // Standard tetrominoes are types 1..7; everything above is a non-standard piece.
 const STANDARD_TYPES = [1, 2, 3, 4, 5, 6, 7];
@@ -192,6 +336,21 @@ const restartBtn = document.getElementById('restart-btn');
 const comboEl = document.getElementById('combo');
 const b2bEl = document.getElementById('b2b');
 const powerupEl = document.getElementById('powerup');
+const skinSelectEl = document.getElementById('skin-select');
+const pauseMenuEl = document.getElementById('pause-menu');
+const resumeBtn = document.getElementById('resume-btn');
+const pauseRestartBtn = document.getElementById('pause-restart-btn');
+const viewControlsBtn = document.getElementById('view-controls-btn');
+const pauseControlsList = document.getElementById('pause-controls-list');
+const startLevelSelect = document.getElementById('start-level-select');
+const sideControlsEl = document.getElementById('side-controls');
+const recordsEl = document.getElementById('records');
+const recordsBestsEl = document.getElementById('records-bests');
+const recordsListEl = document.getElementById('records-list');
+const recordsSaveEl = document.getElementById('records-save');
+const recordsNameInput = document.getElementById('records-name-input');
+const recordsSaveBtn = document.getElementById('records-save-btn');
+const recordsResetBtn = document.getElementById('records-reset-btn');
 
 let board, current, nextQueue, score, lines, level, paused, gameOver, lastTime, dropAccum, dropInterval, animId;
 let mode, timeLeft, garbageAccum, invisibleCells, revealUntil;
@@ -199,7 +358,33 @@ let hold, holdUsed, pendingReward;
 let combo, b2b, lastMoveWasRotation, flash;
 let linesSincePowerup, pendingPowerup, frozenUntil, wildcards;
 let energy, previewUntil, slowUntil, undoSnapshot, pieceStartScore;
+let menuOpen = false;
+let maxCombo;
 let audioCtx = null;
+
+// localStorage can throw in private browsing; every access is wrapped.
+const START_LEVEL_KEY = 'tetris.startLevel';
+
+function loadStartLevel() {
+  try {
+    const raw = localStorage.getItem(START_LEVEL_KEY);
+    const n = Number(raw);
+    if (Number.isInteger(n) && n >= 1 && n <= 15) return n;
+  } catch (err) {
+    // Ignore read failures and fall back to the default.
+  }
+  return 1;
+}
+
+function saveStartLevel(value) {
+  try {
+    localStorage.setItem(START_LEVEL_KEY, String(value));
+  } catch (err) {
+    // Ignore write failures (private mode, quota, etc.).
+  }
+}
+
+let startLevel = loadStartLevel();
 
 const ABILITIES = [
   {
@@ -435,10 +620,13 @@ function applyScore(cleared, tSpin) {
   if (difficult && b2b) gained *= B2B_MULTIPLIER;
 
   combo++;
-  if (combo > 0) gained += COMBO_BONUS * combo * level;
+  if (combo > 0) {
+    gained += COMBO_BONUS * combo * level;
+    maxCombo = Math.max(maxCombo, combo + 1);
+  }
 
   lines += cleared;
-  level = Math.floor(lines / 10) + 1;
+  level = Math.max(startLevel, Math.floor(lines / 10) + 1);
   dropInterval = Math.max(100, 1000 - (level - 1) * 90);
   energy = Math.min(MAX_ENERGY, energy + cleared * ENERGY_PER_LINE);
   grantPowerupProgress(cleared);
@@ -652,18 +840,11 @@ function updateHUD() {
 
 function drawBlock(context, x, y, colorIndex, size, alpha) {
   if (!colorIndex) return;
-  const color = COLORS[colorIndex];
-  context.globalAlpha = alpha ?? 1;
-  context.fillStyle = color;
-  context.fillRect(x * size + 1, y * size + 1, size - 2, size - 2);
-  // highlight
-  context.fillStyle = 'rgba(255,255,255,0.12)';
-  context.fillRect(x * size + 1, y * size + 1, size - 2, 4);
-  context.globalAlpha = 1;
+  activeSkin.drawBlock(context, x, y, colorIndex, size, alpha ?? 1);
 }
 
 function drawGrid() {
-  ctx.strokeStyle = '#22222e';
+  ctx.strokeStyle = activeSkin.gridColor;
   ctx.lineWidth = 0.5;
   for (let c = 1; c < COLS; c++) {
     ctx.beginPath();
@@ -760,19 +941,15 @@ function drawShapeInSlot(context, shape, offsetY, size, alpha) {
   const cells = Math.max(4, shape.length, shape[0].length);
   const NB = size / cells;
   const offX = (cells - shape[0].length) / 2;
-  const offY = (cells - shape.length) / 2;
-  context.globalAlpha = alpha ?? 1;
+  // `offsetY` is always a multiple of `size` (a whole number of slots), so
+  // dividing by NB stays a whole number of grid rows — same grid space the
+  // active skin's drawBlock already expects.
+  const offY = (cells - shape.length) / 2 + offsetY / NB;
   for (let r = 0; r < shape.length; r++)
     for (let c = 0; c < shape[r].length; c++) {
       if (!shape[r][c]) continue;
-      const x = (offX + c) * NB;
-      const y = offsetY + (offY + r) * NB;
-      context.fillStyle = COLORS[shape[r][c]];
-      context.fillRect(x + 1, y + 1, NB - 2, NB - 2);
-      context.fillStyle = 'rgba(255,255,255,0.12)';
-      context.fillRect(x + 1, y + 1, NB - 2, 3);
+      drawBlock(context, offX + c, offY + r, shape[r][c], NB, alpha);
     }
-  context.globalAlpha = 1;
 }
 
 function drawNext() {
@@ -793,14 +970,251 @@ function drawHold() {
   drawShapeInSlot(holdCtx, PIECES[hold], 0, 120, holdUsed ? 0.35 : 1);
 }
 
+function buildSkinSelector() {
+  for (const id of Object.keys(SKINS)) {
+    const option = document.createElement('option');
+    option.value = id;
+    option.textContent = SKINS[id].label;
+    skinSelectEl.appendChild(option);
+  }
+  skinSelectEl.value = activeSkin.id;
+}
+
+// Applies a skin hot: no page reload needed. `board` is only set once the
+// game has started (init() runs before it), so this also covers the start
+// screen and pause overlay, where the render loop is not ticking.
+function applySkin(id) {
+  activeSkin = SKINS[id] ? SKINS[id] : SKINS.retro;
+  document.body.dataset.skin = activeSkin.theme;
+  saveSkin(activeSkin.id);
+  skinSelectEl.value = activeSkin.id;
+  if (board) {
+    drawNext();
+    drawHold();
+    if (current) draw();
+  }
+}
+
+// The overlay is translucent, so the sidebar controls would still be legible
+// underneath it while paused and make "Ver controles" look like a no-op. The
+// menu conceals them and owns the key list for as long as it is open. Closing
+// the menu always collapses its own list, so it reopens closed next time.
+function setPauseMenuOpen(open) {
+  pauseMenuEl.classList.toggle('hidden', !open);
+  sideControlsEl.classList.toggle('concealed', open);
+  if (!open) pauseControlsList.classList.add('hidden');
+}
+
+// ---- Local high-score table (localStorage) ----
+const RECORDS_KEY = 'tetris.records';
+const RECORDS_NAME_KEY = 'tetris.records.name';
+const MAX_RECORDS = 5;
+
+// In-memory fallbacks used when localStorage throws (e.g. private browsing).
+let memoryRecords = null;
+let memoryPlayerName = null;
+let pendingRecordEntry = null;
+let recordsResetArmed = false;
+
+function defaultRecords() {
+  return { top: [], bestCombo: 0, bestLines: 0 };
+}
+
+// Defends against a corrupt or hand-edited localStorage value.
+function sanitizeRecordEntry(entry) {
+  if (!entry || typeof entry !== 'object') return null;
+  const score = Number(entry.score);
+  const lines = Number(entry.lines);
+  const level = Number(entry.level);
+  if (!Number.isFinite(score) || !Number.isFinite(lines) || !Number.isFinite(level)) return null;
+  const name = typeof entry.name === 'string' && entry.name.trim() ? entry.name.slice(0, 12) : 'JUGADOR';
+  const modeLabel = typeof entry.mode === 'string' ? entry.mode : '';
+  const date = typeof entry.date === 'string' ? entry.date : '';
+  return { name, score, lines, level, mode: modeLabel, date };
+}
+
+function sanitizeRecords(raw) {
+  const data = defaultRecords();
+  if (!raw || typeof raw !== 'object') return data;
+  if (Array.isArray(raw.top)) {
+    data.top = raw.top.map(sanitizeRecordEntry).filter(Boolean)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, MAX_RECORDS);
+  }
+  data.bestCombo = Number.isFinite(Number(raw.bestCombo)) ? Number(raw.bestCombo) : 0;
+  data.bestLines = Number.isFinite(Number(raw.bestLines)) ? Number(raw.bestLines) : 0;
+  return data;
+}
+
+function loadRecords() {
+  if (memoryRecords) return memoryRecords;
+  try {
+    const raw = localStorage.getItem(RECORDS_KEY);
+    return raw ? sanitizeRecords(JSON.parse(raw)) : defaultRecords();
+  } catch (err) {
+    // Corrupt JSON or unavailable storage: keep the game working, just unsaved.
+    return defaultRecords();
+  }
+}
+
+function saveRecords(data) {
+  try {
+    localStorage.setItem(RECORDS_KEY, JSON.stringify(data));
+    memoryRecords = null;
+  } catch (err) {
+    memoryRecords = data;
+  }
+}
+
+function loadPlayerName() {
+  if (memoryPlayerName !== null) return memoryPlayerName;
+  try {
+    return localStorage.getItem(RECORDS_NAME_KEY) || '';
+  } catch (err) {
+    return '';
+  }
+}
+
+function savePlayerName(name) {
+  try {
+    localStorage.setItem(RECORDS_NAME_KEY, name);
+    memoryPlayerName = null;
+  } catch (err) {
+    memoryPlayerName = name;
+  }
+}
+
+function formatRecordDate(iso) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: '2-digit' });
+}
+
+function renderRecords(highlightIndex) {
+  const data = loadRecords();
+  recordsBestsEl.textContent = `Mejor combo: x${data.bestCombo} · Máx. líneas: ${data.bestLines}`;
+  recordsListEl.innerHTML = '';
+  if (data.top.length === 0) {
+    const li = document.createElement('li');
+    li.className = 'records-empty';
+    li.textContent = 'Sin records todavía';
+    recordsListEl.appendChild(li);
+    return;
+  }
+  data.top.forEach((entry, i) => {
+    const li = document.createElement('li');
+    li.className = i === highlightIndex ? 'records-new' : '';
+    const rank = document.createElement('span');
+    rank.textContent = `${i + 1}.`;
+    const name = document.createElement('span');
+    name.className = 'records-name';
+    name.textContent = entry.name;
+    const scoreSpan = document.createElement('span');
+    scoreSpan.className = 'records-score';
+    scoreSpan.textContent = entry.score.toLocaleString();
+    const meta = document.createElement('span');
+    meta.className = 'records-meta';
+    meta.textContent = `${entry.mode} · L${entry.level} · ${entry.lines} líneas · ${formatRecordDate(entry.date)}`;
+    li.append(rank, name, scoreSpan, meta);
+    recordsListEl.appendChild(li);
+  });
+}
+
+// Renders the records panel. `allowSave` is true only at the end of a run
+// (finishGame), when the just-played score may qualify for the top 5 and the
+// running combo/line bests get merged in; the mode-select screen just reads.
+function showRecordsPanel(allowSave) {
+  recordsEl.classList.remove('hidden');
+  pendingRecordEntry = null;
+  recordsSaveEl.classList.add('hidden');
+  if (!allowSave) {
+    renderRecords();
+    return;
+  }
+
+  const data = loadRecords();
+  const bestCombo = Math.max(data.bestCombo, maxCombo || 0);
+  const bestLines = Math.max(data.bestLines, lines || 0);
+  if (bestCombo !== data.bestCombo || bestLines !== data.bestLines) {
+    data.bestCombo = bestCombo;
+    data.bestLines = bestLines;
+    saveRecords(data);
+  }
+
+  const qualifies = data.top.length < MAX_RECORDS || score > data.top[data.top.length - 1].score;
+  renderRecords();
+
+  if (qualifies) {
+    pendingRecordEntry = { score, lines, level, mode: mode.label, date: new Date().toISOString() };
+    recordsSaveEl.classList.remove('hidden');
+    recordsNameInput.value = loadPlayerName();
+    recordsNameInput.focus();
+    recordsNameInput.select();
+  }
+}
+
+function saveRecordEntry() {
+  if (!pendingRecordEntry) return;
+  const rawName = recordsNameInput.value.trim().slice(0, 12);
+  const name = rawName || 'JUGADOR';
+  savePlayerName(name);
+
+  const data = loadRecords();
+  const entry = { ...pendingRecordEntry, name };
+  data.top.push(entry);
+  data.top.sort((a, b) => b.score - a.score);
+  data.top = data.top.slice(0, MAX_RECORDS);
+  saveRecords(data);
+
+  const highlightIndex = data.top.indexOf(entry);
+  pendingRecordEntry = null;
+  recordsSaveEl.classList.add('hidden');
+  renderRecords(highlightIndex);
+}
+
+recordsSaveBtn.addEventListener('click', saveRecordEntry);
+// Keep every keystroke inside the input from reaching the game's global
+// keydown handler (arrows, digits, space are otherwise claimed for gameplay).
+recordsNameInput.addEventListener('keydown', e => {
+  e.stopPropagation();
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    saveRecordEntry();
+  }
+});
+
+recordsResetBtn.addEventListener('click', () => {
+  if (!recordsResetArmed) {
+    recordsResetArmed = true;
+    recordsResetBtn.textContent = '¿Confirmar?';
+    setTimeout(() => {
+      recordsResetArmed = false;
+      recordsResetBtn.textContent = 'Resetear records';
+    }, 3000);
+    return;
+  }
+  recordsResetArmed = false;
+  recordsResetBtn.textContent = 'Resetear records';
+  memoryRecords = null;
+  try {
+    localStorage.removeItem(RECORDS_KEY);
+  } catch (err) {
+    // Nothing persisted anyway; falling through still clears the in-memory copy.
+  }
+  renderRecords();
+});
+
 function finishGame(title, message) {
   gameOver = true;
+  menuOpen = false;
   cancelAnimationFrame(animId);
   overlayTitle.textContent = title;
   overlayScore.textContent = message;
   restartBtn.classList.remove('hidden');
   modeListEl.classList.remove('hidden');
+  setPauseMenuOpen(false);
   overlay.classList.remove('hidden');
+  showRecordsPanel(true);
 }
 
 function endGame() {
@@ -810,7 +1224,9 @@ function endGame() {
 function togglePause() {
   if (gameOver || !current) return;
   paused = !paused;
+  menuOpen = paused;
   if (!paused) {
+    setPauseMenuOpen(false);
     lastTime = performance.now();
     overlay.classList.add('hidden');
     loop(lastTime);
@@ -820,6 +1236,8 @@ function togglePause() {
     overlayScore.textContent = '';
     restartBtn.classList.add('hidden');
     modeListEl.classList.add('hidden');
+    setPauseMenuOpen(true);
+    recordsEl.classList.add('hidden');
     overlay.classList.remove('hidden');
   }
 }
@@ -894,11 +1312,14 @@ function buildModeList() {
 
 function showModeSelect() {
   cancelAnimationFrame(animId);
+  menuOpen = false;
   overlayTitle.textContent = 'TETRIS';
   overlayScore.textContent = 'Elige un modo';
   restartBtn.classList.add('hidden');
   modeListEl.classList.remove('hidden');
+  setPauseMenuOpen(false);
   overlay.classList.remove('hidden');
+  showRecordsPanel(false);
 }
 
 function init(modeId) {
@@ -906,10 +1327,11 @@ function init(modeId) {
   board = createBoard();
   score = 0;
   lines = 0;
-  level = 1;
+  level = startLevel;
   paused = false;
   gameOver = false;
-  dropInterval = 1000;
+  menuOpen = false;
+  dropInterval = Math.max(100, 1000 - (level - 1) * 90);
   dropAccum = 0;
   lastTime = performance.now();
   timeLeft = mode.timeLimitMs || 0;
@@ -932,11 +1354,14 @@ function init(modeId) {
   slowUntil = 0;
   undoSnapshot = null;
   pieceStartScore = 0;
+  maxCombo = 0;
   nextCanvas.height = 120;
   if (mode.prefillRows) prefillBoard(mode.prefillRows);
   nextQueue = Array.from({ length: QUEUE_SIZE }, () => randomPiece());
   spawn();
   updateHUD();
+  startLevelSelect.value = String(startLevel);
+  setPauseMenuOpen(false);
   overlay.classList.add('hidden');
   cancelAnimationFrame(animId);
   animId = requestAnimationFrame(loop);
@@ -946,14 +1371,14 @@ function init(modeId) {
 // of view mid-game, so every key the game owns is claimed here.
 const GAME_KEYS = new Set([
   'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Space',
-  'KeyX', 'KeyC', 'KeyP', 'ShiftLeft', 'ShiftRight',
+  'KeyX', 'KeyC', 'KeyP', 'Escape', 'ShiftLeft', 'ShiftRight',
   'Digit1', 'Digit2', 'Digit3', 'Digit4', 'Digit5',
 ]);
 
 document.addEventListener('keydown', e => {
   if (GAME_KEYS.has(e.code)) e.preventDefault();
-  if (e.code === 'KeyP') { togglePause(); return; }
-  if (!current || paused || gameOver) return;
+  if (e.code === 'KeyP' || e.code === 'Escape') { togglePause(); return; }
+  if (!current || paused || gameOver || menuOpen) return;
   switch (e.code) {
     case 'ArrowLeft':
       if (!collide(current.shape, current.x - 1, current.y)) {
@@ -994,8 +1419,23 @@ document.addEventListener('keydown', e => {
 });
 
 restartBtn.addEventListener('click', () => init(mode.id));
+resumeBtn.addEventListener('click', () => togglePause());
+pauseRestartBtn.addEventListener('click', () => init(mode.id));
+viewControlsBtn.addEventListener('click', () => {
+  pauseControlsList.classList.toggle('hidden');
+});
+startLevelSelect.addEventListener('change', () => {
+  const value = Number(startLevelSelect.value);
+  startLevel = value;
+  saveStartLevel(value);
+});
+
+skinSelectEl.addEventListener('change', () => applySkin(skinSelectEl.value));
 
 buildAbilityList();
 buildModeList();
+buildSkinSelector();
+document.body.dataset.skin = activeSkin.theme;
 mode = MODES[0];
+startLevelSelect.value = String(startLevel);
 showModeSelect();
